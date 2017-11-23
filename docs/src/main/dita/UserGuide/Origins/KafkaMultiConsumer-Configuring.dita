@@ -15,14 +15,13 @@
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
 <task id="task_ost_3n4_x1b">
     <title>Configuring a Kafka Multitopic Consumer</title>
-    <shortdesc/>
     <taskbody>
         <context><indexterm>Kafka Multitopic Consumer
                 origin<indexterm>configuring</indexterm></indexterm>Configure a Kafka Multitopic
             Consumer to use multiple threads to read data from multiple topics in a Kafka cluster. </context>
         <steps>
             <step
-                conref="../Reusable_Content/ReusableSteps.dita#task_kzs_5vz_sq/1stStepErrorHandling">
+                conref="../Reusable_Content/ReusableSteps.dita#task_kzs_5vz_sq/1stStep-StageLib-EHandling">
                 <cmd/>
             </step>
             <step>

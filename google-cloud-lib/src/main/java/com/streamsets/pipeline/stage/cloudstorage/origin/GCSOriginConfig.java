@@ -21,9 +21,6 @@ import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.TimeEL;
-import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.stage.lib.GoogleCloudCredentialsConfig;
 import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
@@ -37,8 +34,8 @@ public class GCSOriginConfig {
         label = "Bucket",
         description = "Expression that will identify bucket for each record.",
         displayPosition = 20,
-        evaluation = ConfigDef.Evaluation.EXPLICIT,
-        elDefs = { RecordEL.class, TimeEL.class, TimeNowEL.class },
+        evaluation = ConfigDef.Evaluation.IMPLICIT,
+        //TODO SDC-7719
         group = "GCS"
     )
     public String bucketTemplate;
@@ -88,9 +85,11 @@ public class GCSOriginConfig {
     @ConfigDefBean()
     public DataParserFormatConfig dataParserFormatConfig;
 
+    @ConfigDefBean(groups = {"ERROR_HANDLING"})
+    public GcsOriginErrorConfig gcsOriginErrorConfig;
+
     @ConfigDefBean(groups = "CREDENTIALS")
     public GoogleCloudCredentialsConfig credentials = new GoogleCloudCredentialsConfig();
-
 
     List<Stage.ConfigIssue> init(Stage.Context context, List<Stage.ConfigIssue> issues) {
         dataParserFormatConfig.init(

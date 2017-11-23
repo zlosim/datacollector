@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.stage.origin.salesforce;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableMap;
 import com.sforce.async.AsyncApiException;
 import com.sforce.async.BatchInfo;
 import com.sforce.async.BatchStateEnum;
@@ -26,27 +25,34 @@ import com.sforce.async.ContentType;
 import com.sforce.async.JobInfo;
 import com.sforce.async.OperationEnum;
 import com.sforce.async.QueryResultList;
-import com.sforce.soap.partner.QueryResult;
-import com.sforce.soap.partner.sobject.SObject;
-import com.sforce.ws.bind.XmlObject;
-import com.streamsets.pipeline.api.BatchMaker;
-import com.streamsets.pipeline.api.Field;
-import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.lib.event.CommonEvents;
-import com.streamsets.pipeline.lib.operation.OperationType;
-import com.streamsets.pipeline.lib.salesforce.ForceConfigBean;
-import com.streamsets.pipeline.lib.salesforce.ForceRepeatQuery;
-import com.streamsets.pipeline.lib.salesforce.ForceSourceConfigBean;
-import com.streamsets.pipeline.lib.salesforce.ForceUtils;
-import com.streamsets.pipeline.lib.util.ThreadUtil;
 import com.sforce.soap.partner.Connector;
 import com.sforce.soap.partner.PartnerConnection;
+import com.sforce.soap.partner.QueryResult;
+import com.sforce.soap.partner.sobject.SObject;
 import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
 import com.sforce.ws.SessionRenewer;
-import com.streamsets.pipeline.lib.salesforce.Errors;
+import com.sforce.ws.bind.XmlObject;
+import com.streamsets.pipeline.api.BatchMaker;
+import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
+import com.streamsets.pipeline.lib.event.CommonEvents;
+import com.streamsets.pipeline.lib.salesforce.BulkRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.Errors;
+import com.streamsets.pipeline.lib.salesforce.ForceConfigBean;
+import com.streamsets.pipeline.lib.salesforce.ForceRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.ForceRepeatQuery;
+import com.streamsets.pipeline.lib.salesforce.ForceSourceConfigBean;
+import com.streamsets.pipeline.lib.salesforce.ForceUtils;
+import com.streamsets.pipeline.lib.salesforce.PlatformEventRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.PushTopicRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.ReplayOption;
+import com.streamsets.pipeline.lib.salesforce.SoapRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.SobjectRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.SubscriptionType;
+import com.streamsets.pipeline.lib.util.ThreadUtil;
+import org.apache.commons.lang3.tuple.Pair;
 import org.cometd.bayeux.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +63,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -73,22 +78,14 @@ public class ForceSource extends BaseSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(ForceSource.class);
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String HEADER_ATTRIBUTE_PREFIX = "salesforce.cdc.";
-  private static final String SOBJECT_TYPE_ATTRIBUTE = "salesforce.sobjectType";
   private static final String REPLAY_ID = "replayId";
   private static final String AUTHENTICATION_INVALID = "401::Authentication invalid";
   private static final String META = "/meta";
   private static final String META_HANDSHAKE = "/meta/handshake";
+  private static final String READ_EVENTS_FROM_NOW = EVENT_ID_OFFSET_PREFIX + EVENT_ID_FROM_NOW;
 
-  public static final String READ_EVENTS_FROM_NOW = EVENT_ID_OFFSET_PREFIX + EVENT_ID_FROM_NOW;
-  public static final String READ_EVENTS_FROM_START = EVENT_ID_OFFSET_PREFIX + EVENT_ID_FROM_START;
+  static final String READ_EVENTS_FROM_START = EVENT_ID_OFFSET_PREFIX + EVENT_ID_FROM_START;
 
-  private static final Map<String, Integer> SFDC_TO_SDC_OPERATION = new ImmutableMap.Builder<String, Integer>()
-      .put("created", OperationType.INSERT_CODE)
-      .put("updated", OperationType.UPDATE_CODE)
-      .put("deleted", OperationType.DELETE_CODE)
-      .put("undeleted", OperationType.UNDELETE_CODE)
-      .build();
   private final ForceSourceConfigBean conf;
 
   private PartnerConnection partnerConnection;
@@ -111,15 +108,10 @@ public class ForceSource extends BaseSource {
 
   private BlockingQueue<Message> messageQueue;
   private ForceStreamConsumer forceConsumer;
+  private ForceRecordCreator recordCreator;
 
-  private Map<String, Map<String, com.sforce.soap.partner.Field>> metadataMap;
   private boolean shouldSendNoMoreDataEvent = false;
   private AtomicBoolean destroyed = new AtomicBoolean(false);
-
-  private class FieldTree {
-    String offset;
-    LinkedHashMap<String, Field> map;
-  }
 
   public ForceSource(
       ForceSourceConfigBean conf
@@ -156,6 +148,15 @@ public class ForceSource extends BaseSource {
           getContext().createConfigIssue(
               Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "queryExistingData", Errors.FORCE_00,
               "You must query existing data, subscribe for notifications, or both!"
+          )
+      );
+    }
+
+    if (conf.queryExistingData && conf.subscriptionType == SubscriptionType.PLATFORM_EVENT) {
+      issues.add(
+          getContext().createConfigIssue(
+              Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "queryExistingData", Errors.FORCE_00,
+              "You cannot both query existing data and subscribe to a Platform Event!"
           )
       );
     }
@@ -207,57 +208,69 @@ public class ForceSource extends BaseSource {
     }
 
     if (issues.isEmpty() && conf.subscribeToStreaming) {
-      String query = "SELECT Id, Query FROM PushTopic WHERE Name = '"+conf.pushTopic+"'";
+      if (conf.subscriptionType == SubscriptionType.PUSH_TOPIC) {
+        String query = "SELECT Id, Query FROM PushTopic WHERE Name = '"+conf.pushTopic+"'";
 
-      QueryResult qr = null;
-      try {
-        qr = partnerConnection.query(query);
+        QueryResult qr = null;
+        try {
+          qr = partnerConnection.query(query);
 
-        if (qr.getSize() != 1) {
+          if (qr.getSize() != 1) {
+            issues.add(
+                getContext().createConfigIssue(
+                    Groups.SUBSCRIBE.name(), ForceConfigBean.CONF_PREFIX + "pushTopic", Errors.FORCE_00,
+                    "Can't find Push Topic '" + conf.pushTopic +"'"
+                )
+            );
+          } else if (null == sobjectType) {
+            String soqlQuery = (String)qr.getRecords()[0].getField("Query");
+            try {
+              sobjectType = ForceUtils.getSobjectTypeFromQuery(soqlQuery);
+              LOG.info("Found sobject type {}", sobjectType);
+            } catch (StageException e) {
+              issues.add(getContext().createConfigIssue(Groups.SUBSCRIBE.name(),
+                  ForceConfigBean.CONF_PREFIX + "pushTopic",
+                  Errors.FORCE_00,
+                  "Badly formed SOQL Query: " + soqlQuery
+              ));
+            }
+          }
+        } catch (ConnectionException e) {
           issues.add(
               getContext().createConfigIssue(
-                  Groups.SUBSCRIBE.name(), ForceConfigBean.CONF_PREFIX + "pushTopic", Errors.FORCE_00,
-                  "Can't find Push Topic '" + conf.pushTopic +"'"
+                  Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "authEndpoint", Errors.FORCE_00, e
               )
           );
-        } else if (null == sobjectType) {
-          String soqlQuery = (String)qr.getRecords()[0].getField("Query");
-          sobjectType = ForceUtils.getSobjectTypeFromQuery(soqlQuery);
-          LOG.info("Found sobject type {}", sobjectType);
-          if (sobjectType == null) {
-            issues.add(getContext().createConfigIssue(Groups.SUBSCRIBE.name(),
-                ForceConfigBean.CONF_PREFIX + "pushTopic",
-                Errors.FORCE_00,
-                "Badly formed SOQL Query: " + soqlQuery
-            ));
-          }
         }
-      } catch (ConnectionException e) {
-        issues.add(
-            getContext().createConfigIssue(
-                Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "authEndpoint", Errors.FORCE_00, e
-            )
-        );
       }
 
       messageQueue = new ArrayBlockingQueue<>(2 * conf.basicConfig.maxBatchSize);
     }
 
     if (issues.isEmpty()) {
-      try {
-        metadataMap = ForceUtils.getMetadataMap(partnerConnection, sobjectType);
-      } catch (ConnectionException e) {
-        LOG.error("Exception getting metadata map: {}", e);
-        issues.add(getContext().createConfigIssue(Groups.QUERY.name(),
-            ForceConfigBean.CONF_PREFIX + "soqlQuery",
-            Errors.FORCE_21,
-            sobjectType
-        ));
-      }
+      recordCreator = buildRecordCreator();
     }
 
     // If issues is not empty, the UI will inform the user of each configuration issue in the list.
     return issues;
+  }
+
+  private ForceRecordCreator buildRecordCreator() {
+    if (conf.queryExistingData) {
+      if (conf.useBulkAPI) {
+        return new BulkRecordCreator(getContext(), conf, sobjectType);
+      } else {
+        return new SoapRecordCreator(getContext(), conf, sobjectType);
+      }
+    } else if (conf.subscribeToStreaming) {
+      if (conf.subscriptionType == SubscriptionType.PUSH_TOPIC) {
+        return new PushTopicRecordCreator(getContext(), conf, sobjectType);
+      } else {
+        return new PlatformEventRecordCreator(getContext(), conf.platformEvent);
+      }
+    }
+
+    return null;
   }
 
   /** {@inheritDoc} */
@@ -300,17 +313,20 @@ public class ForceSource extends BaseSource {
 
   private String prepareQuery(String query, String lastSourceOffset) throws StageException {
     final String offset = (null == lastSourceOffset) ? conf.initialOffset : lastSourceOffset;
+    SobjectRecordCreator sobjectRecordCreator = (SobjectRecordCreator)recordCreator;
 
-    try {
-      metadataMap = ForceUtils.getMetadataMap(partnerConnection, sobjectType);
-    } catch (ConnectionException e) {
-      LOG.error("Exception getting metadata map: {}", e);
-      throw new StageException(Errors.FORCE_21, sobjectType, e);
+    String expandedQuery;
+    if (sobjectRecordCreator.queryHasWildcard(query)) {
+      // Can't follow relationships on a wildcard query, so build the cache from the object type
+      sobjectRecordCreator.buildMetadataCache(partnerConnection);
+      expandedQuery = sobjectRecordCreator.expandWildcard(query);
+    } else {
+      // Use the query in building the cache
+      expandedQuery = query;
+      sobjectRecordCreator.buildMetadataCacheFromQuery(partnerConnection, query);
     }
 
-    query = ForceUtils.expandWildcard(query, sobjectType, metadataMap);
-
-    return query.replaceAll("\\$\\{offset\\}", offset);
+    return expandedQuery.replaceAll("\\$\\{offset\\}", offset);
   }
 
   /** {@inheritDoc} */
@@ -370,7 +386,7 @@ public class ForceSource extends BaseSource {
     return (conf.useBulkAPI && job != null) || (!conf.useBulkAPI && queryResult != null);
   }
 
-  public String bulkProduce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
+  private String bulkProduce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
 
     String nextSourceOffset = (null == lastSourceOffset) ? RECORD_ID_OFFSET_PREFIX + conf.initialOffset : lastSourceOffset;
 
@@ -474,7 +490,7 @@ public class ForceSource extends BaseSource {
       while (numRecords < maxBatchSize) {
         try {
           if ((row = rdr.nextRecord()) == null) {
-            // Exhausted this result - come back in on the next batch;
+            // Exhausted this result - come back in on the next batch
             rdr = null;
             if (resultIndex == queryResultList.getResult().length) {
               // We're out of results, too!
@@ -504,44 +520,7 @@ public class ForceSource extends BaseSource {
             String offset = row.get(offsetIndex);
             nextSourceOffset = RECORD_ID_OFFSET_PREFIX + offset;
             final String sourceId = conf.soqlQuery + "::" + offset;
-            Record record = getContext().createRecord(sourceId);
-            LinkedHashMap<String, Field> map = new LinkedHashMap<>();
-            for (int i = 0; i < resultHeader.size(); i++) {
-              String fieldName = resultHeader.get(i);
-
-              // Walk the dotted list of subfields
-              String[] parts = fieldName.split("\\.");
-
-              // Process any chain of relationships
-              String parent = sobjectType;
-              for (int j = 0; j < parts.length - 1; j++) {
-                com.sforce.soap.partner.Field sfdcField = null;
-                Map<String, com.sforce.soap.partner.Field> fieldMap = metadataMap.get(parent);
-
-                // Metadata map is indexed by field name, but it's the relationship name in the data
-                for (Map.Entry<String, com.sforce.soap.partner.Field> entry : fieldMap.entrySet()) {
-                  if (entry.getValue().getRelationshipName() != null) {
-                    if (entry.getValue().getRelationshipName().equalsIgnoreCase(parts[j])) {
-                      sfdcField = entry.getValue();
-                      break;
-                    }
-                  }
-                }
-
-                parent = sfdcField.getReferenceTo()[0].toLowerCase();
-              }
-
-              // Now process the actual field itself
-              com.sforce.soap.partner.Field sfdcField = metadataMap.get(parent).get(parts[parts.length - 1].toLowerCase());
-
-              Field field = ForceUtils.createField(row.get(i), sfdcField);
-              if (conf.createSalesforceNsHeaders) {
-                ForceUtils.setHeadersOnField(field, metadataMap.get(sobjectType).get(fieldName.toLowerCase()), conf.salesforceNsHeaderPrefix);
-              }
-              map.put(fieldName, field);
-            }
-            record.set(Field.createListMap(map));
-            record.getHeader().setAttribute(SOBJECT_TYPE_ATTRIBUTE, sobjectType);
+            Record record = recordCreator.createRecord(sourceId, Pair.of(resultHeader, row));
             batchMaker.addRecord(record);
             ++numRecords;
           }
@@ -572,7 +551,7 @@ public class ForceSource extends BaseSource {
     return item;
   }
 
-  public String soapProduce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
+  private String soapProduce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
 
     String nextSourceOffset = (null == lastSourceOffset) ? RECORD_ID_OFFSET_PREFIX + conf.initialOffset : lastSourceOffset;
 
@@ -605,11 +584,9 @@ public class ForceSource extends BaseSource {
       }
       String offset = offsetField.getValue().toString();
       nextSourceOffset = RECORD_ID_OFFSET_PREFIX + offset;
-      final String recordContext = conf.soqlQuery + "::" + offset;
+      final String sourceId = conf.soqlQuery + "::" + offset;
 
-      Record rec = getContext().createRecord(recordContext);
-      rec.set(Field.createListMap(ForceUtils.addFields(record, metadataMap, conf.createSalesforceNsHeaders, conf.salesforceNsHeaderPrefix)));
-      rec.getHeader().setAttribute(SOBJECT_TYPE_ATTRIBUTE, sobjectType);
+      Record rec = recordCreator.createRecord(sourceId, record);
 
       batchMaker.addRecord(rec);
     }
@@ -676,11 +653,12 @@ public class ForceSource extends BaseSource {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private String processDataMessage(Message message, BatchMaker batchMaker)
       throws IOException, StageException {
     String msgJson = message.getJSON();
 
-    // Message has the form
+    // PushTopic Message has the form
     // {
     //   "channel": "/topic/AccountUpdates",
     //   "clientId": "j17ylcz9l0t0fyp0pze7uzpqlt",
@@ -697,6 +675,25 @@ public class ForceSource extends BaseSource {
     //     }
     //   }
     // }
+
+    // Platform Event Message has the form
+    //  {
+    //    "data": {
+    //      "schema": "dffQ2QLzDNHqwB8_sHMxdA",
+    //      "payload": {
+    //        "CreatedDate": "2017-04-09T18:31:40Z",
+    //        "CreatedById": "005D0000001cSZs",
+    //        "Printer_Model__c": "XZO-5",
+    //        "Serial_Number__c": "12345",
+    //        "Ink_Percentage__c": 0.2
+    //      },
+    //      "event": {
+    //        "replayId": 2
+    //      }
+    //    },
+    //    "channel": "/event/Low_Ink__e"
+    //  }
+
     LOG.info("Processing message: {}", msgJson);
 
     Object json = OBJECT_MAPPER.readValue(msgJson, Object.class);
@@ -705,36 +702,11 @@ public class ForceSource extends BaseSource {
     Map<String, Object> event = (Map<String, Object>) data.get("event");
     Map<String, Object> sobject = (Map<String, Object>) data.get("sobject");
 
-    final String recordContext = event.get("createdDate") + "::" + sobject.get("Id");
-    Record rec = getContext().createRecord(recordContext);
+    final String sourceId = (conf.subscriptionType == SubscriptionType.PUSH_TOPIC)
+      ? event.get("createdDate") + "::" + sobject.get("Id")
+      : event.get("replayId").toString();
 
-    // sobject data becomes fields
-    LinkedHashMap<String, Field> map = new LinkedHashMap<>();
-
-    for (String key : sobject.keySet()) {
-      Object val = sobject.get(key);
-      com.sforce.soap.partner.Field sfdcField = metadataMap.get(sobjectType).get(key.toLowerCase());
-      Field field = ForceUtils.createField(val, sfdcField);
-      if (conf.createSalesforceNsHeaders) {
-        ForceUtils.setHeadersOnField(field, metadataMap.get(sobjectType).get(key.toLowerCase()), conf.salesforceNsHeaderPrefix);
-      }
-      map.put(key, field);
-    }
-
-    rec.set(Field.createListMap(map));
-
-    // event data becomes header attributes
-    // of the form salesforce.cdc.createdDate,
-    // salesforce.cdc.type
-    Record.Header recordHeader = rec.getHeader();
-    for (Map.Entry<String, Object> entry : event.entrySet()) {
-      recordHeader.setAttribute(HEADER_ATTRIBUTE_PREFIX + entry.getKey(), entry.getValue().toString());
-      if ("type".equals(entry.getKey())) {
-        int operationCode = SFDC_TO_SDC_OPERATION.get(entry.getValue().toString());
-        recordHeader.setAttribute(OperationType.SDC_OPERATION_TYPE, String.valueOf(operationCode));
-      }
-    }
-    recordHeader.setAttribute(SOBJECT_TYPE_ATTRIBUTE, sobjectType);
+    Record rec = recordCreator.createRecord(sourceId, Pair.of(partnerConnection, data));
 
     batchMaker.addRecord(rec);
 
@@ -746,9 +718,23 @@ public class ForceSource extends BaseSource {
     if (getContext().isPreview()) {
       nextSourceOffset = READ_EVENTS_FROM_START;
     } else if (null == lastSourceOffset) {
-      nextSourceOffset = READ_EVENTS_FROM_NOW;
+      if (conf.subscriptionType == SubscriptionType.PLATFORM_EVENT &&
+          conf.replayOption == ReplayOption.ALL_EVENTS) {
+        nextSourceOffset = READ_EVENTS_FROM_START;
+      } else {
+        nextSourceOffset = READ_EVENTS_FROM_NOW;
+      }
     } else {
       nextSourceOffset = lastSourceOffset;
+    }
+
+    if (recordCreator instanceof SobjectRecordCreator) {
+      // Switch out recordCreator
+      PushTopicRecordCreator pushTopicRecordCreator = new PushTopicRecordCreator((SobjectRecordCreator)recordCreator);
+      if (!pushTopicRecordCreator.metadataCacheExists()) {
+        pushTopicRecordCreator.buildMetadataCache(partnerConnection);
+      }
+      recordCreator = pushTopicRecordCreator;
     }
 
     if (forceConsumer == null) {
@@ -780,18 +766,34 @@ public class ForceSource extends BaseSource {
       return nextSourceOffset;
     }
 
-    List<Message> messages = new ArrayList<>(maxBatchSize);
-    messageQueue.drainTo(messages, maxBatchSize);
+    // Loop if we're in preview mode - we'll get killed after the preview timeout if no data arrives
+    boolean done = false;
+    while (!done) {
+      List<Message> messages = new ArrayList<>(maxBatchSize);
+      messageQueue.drainTo(messages, maxBatchSize);
 
-    for (Message message : messages) {
-      try {
-        if (message.getChannel().startsWith(META)) {
-          processMetaMessage(message, nextSourceOffset);
-        } else {
-          nextSourceOffset = processDataMessage(message, batchMaker);
+      for (Message message : messages) {
+        try {
+          if (message.getChannel().startsWith(META)) {
+            // Handshake, subscription messages
+            processMetaMessage(message, nextSourceOffset);
+          } else {
+            // Yay - actual data messages
+            nextSourceOffset = processDataMessage(message, batchMaker);
+            done = true;
+          }
+        } catch (IOException e) {
+          throw new StageException(Errors.FORCE_02, e);
         }
-      } catch (IOException e) {
-        throw new StageException(Errors.FORCE_02, e);
+      }
+      if (!done && getContext().isPreview()) {
+        // In preview - give data messages a chance to arrive
+        if (!ThreadUtil.sleep(1000)) {
+          // Interrupted!
+          done = true;
+        }
+      } else {
+        done = true;
       }
     }
 

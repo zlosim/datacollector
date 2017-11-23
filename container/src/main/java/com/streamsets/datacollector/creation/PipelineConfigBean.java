@@ -124,11 +124,11 @@ public class PipelineConfigBean implements Stage {
     required = true,
     type = ConfigDef.Type.NUMBER,
     label = "Max Pipeline Memory (MB)",
-    defaultValue = "${jvm:maxMemoryMB() * 0.65}",
+    defaultValue = "${jvm:maxMemoryMB() * 0.85}",
     description = "Maximum amount of memory the pipeline can use. Configure in relationship to the SDC Java heap " +
-      "size. The default is 650 and a value of 0 or less disables the limit.",
+      "size. The default is 85% of heap and a value of 0 disables the limit.",
     displayPosition = 60,
-    min = 128,
+    min = 0,
     group = ""
   )
   public long memoryLimit;
@@ -137,7 +137,7 @@ public class PipelineConfigBean implements Stage {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
-      defaultValue="STOP_PIPELINE",
+      defaultValue="LOG",
       label = "On Memory Exceeded",
       description = "Behavior when the pipeline exceeds the memory limit. Tip: Configure an alert to indicate when the " +
         "memory use approaches the limit." ,
@@ -232,7 +232,7 @@ public class PipelineConfigBean implements Stage {
       required = true,
       type = ConfigDef.Type.NUMBER,
       label = "Worker Memory (MB)",
-      defaultValue = "1024",
+      defaultValue = "2048",
       displayPosition = 150,
       group = "CLUSTER",
       dependsOn = "executionMode",
@@ -311,6 +311,17 @@ public class PipelineConfigBean implements Stage {
       displayPosition = 190
   )
   public int maxRunners = 0;
+
+  @ConfigDef(
+    required = true,
+    type = ConfigDef.Type.BOOLEAN,
+    defaultValue = "true",
+    label = "Create Failure Snapshot",
+    description = "When selected and the pipeline execution fails with unrecoverable exception, SDC will attempt to create" +
+      "partial snapshot with records that have not been processed yet.",
+    displayPosition = 200
+  )
+  public boolean shouldCreateFailureSnapshot;
 
   @ConfigDef(required = true,
       type = ConfigDef.Type.MODEL,

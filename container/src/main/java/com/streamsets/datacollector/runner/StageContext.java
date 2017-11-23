@@ -129,6 +129,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
   private final LineagePublisherDelegator lineagePublisherDelegator;
   private PipelineFinisherDelegate pipelineFinisherDelegate;
   private RuntimeInfo runtimeInfo;
+  private final Map<Class, ServiceRuntime> services;
 
   //for SDK
   public StageContext(
@@ -200,6 +201,9 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
     this.sampler = new RecordSampler(this, stageType == StageType.SOURCE, 0, 0);
     this.startTime = System.currentTimeMillis();
     this.lineagePublisherDelegator = lineagePublisherDelegator;
+
+    // Services are currently not supported in SDK
+    this.services = Collections.emptyMap();
   }
 
   public StageContext(
@@ -221,7 +225,8 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
       Configuration configuration,
       Map<String, Object> sharedRunnerMap,
       long startTime,
-      LineagePublisherDelegator lineagePublisherDelegator
+      LineagePublisherDelegator lineagePublisherDelegator,
+      Map<Class, ServiceRuntime> services
   ) {
     this.pipelineId = pipelineId;
     this.pipelineTitle = pipelineTitle;
@@ -251,6 +256,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
     this.sharedRunnerMap = sharedRunnerMap;
     this.startTime = startTime;
     this.lineagePublisherDelegator = lineagePublisherDelegator;
+    this.services = services;
   }
 
   private Map<String, Class<?>[]> getConfigToElDefMap(StageRuntime stageRuntime) {
@@ -655,6 +661,15 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
   @Override
   public Map<String, Object> getStageRunnerSharedMap() {
     return sharedRunnerMap;
+  }
+
+  @Override
+  public <T> T getService(Class<? extends T> serviceInterface) {
+    if(!services.containsKey(serviceInterface)) {
+      throw new RuntimeException(Utils.format("Trying to retrieve undeclared service: {}", serviceInterface));
+    }
+
+    return (T)services.get(serviceInterface);
   }
 
   @Override

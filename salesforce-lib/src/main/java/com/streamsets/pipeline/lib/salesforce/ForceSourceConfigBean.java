@@ -23,7 +23,7 @@ import com.streamsets.pipeline.lib.el.OffsetEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
 
-public class ForceSourceConfigBean extends ForceConfigBean {
+public class ForceSourceConfigBean extends ForceInputConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
@@ -53,7 +53,6 @@ public class ForceSourceConfigBean extends ForceConfigBean {
       required = true,
       type = ConfigDef.Type.TEXT,
       mode = ConfigDef.Mode.SQL,
-      defaultValue = "",
       label = "SOQL Query",
       description =
           "SELECT <offset field>, <more fields>, ... FROM <object name> WHERE <offset field>  >  ${OFFSET} ORDER BY <offset field>",
@@ -152,40 +151,62 @@ public class ForceSourceConfigBean extends ForceConfigBean {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Subscription Type",
+      description = "Select Push Topic (to subscribe to SObject record changes) or Platform Event.",
+      defaultValue = "PUSH_TOPIC",
+      displayPosition = 120,
+      dependencies = {
+          @Dependency(configName = "subscribeToStreaming", triggeredByValues = "true"),
+      },
+      group = "SUBSCRIBE"
+  )
+  @ValueChooserModel(SubscriptionTypeChooserValues.class)
+  public SubscriptionType subscriptionType = SubscriptionType.PUSH_TOPIC;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.STRING,
-      defaultValue = "",
       label = "Push Topic",
       description = "Push Topic name, for example AccountUpdates. The Push Topic must be defined in your Salesforce environment.",
-      displayPosition = 120,
-      dependsOn = "subscribeToStreaming",
-      triggeredByValue = "true",
+      displayPosition = 125,
+      dependencies = {
+          @Dependency(configName = "subscribeToStreaming", triggeredByValues = "true"),
+          @Dependency(configName = "subscriptionType", triggeredByValues = "PUSH_TOPIC"),
+      },
       group = "SUBSCRIBE"
   )
   public String pushTopic;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.BOOLEAN,
-      label = "Create Salesforce Attributes",
-      description = "Generates record header and field attributes that provide additional details about source data, such as the source object and original data type.",
-      defaultValue = "true",
-      displayPosition = 130,
-      group = "ADVANCED"
+      type = ConfigDef.Type.STRING,
+      label = "Platform Event API Name",
+      description = "Platform Event API Name, for example Low_Ink__e. The Platform Event must be defined in your Salesforce environment.",
+      displayPosition = 125,
+      dependencies = {
+          @Dependency(configName = "subscribeToStreaming", triggeredByValues = "true"),
+          @Dependency(configName = "subscriptionType", triggeredByValues = "PLATFORM_EVENT"),
+      },
+      group = "SUBSCRIBE"
   )
-  public boolean createSalesforceNsHeaders = true;
+  public String platformEvent;
 
   @ConfigDef(
-      required = false,
-      type = ConfigDef.Type.STRING,
-      label = "Salesforce Attribute Prefix",
-      description = "Prefix for the header and field attributes, used as follows: <prefix>.<type of information>. For example: salesforce.precision and salesforce.scale",
-      defaultValue = "salesforce.",
-      displayPosition = 140,
-      group = "ADVANCED",
-      dependsOn = "createSalesforceNsHeaders",
-      triggeredByValue = "true"
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Replay Option",
+      description = "Choose which events to receive when the pipeline first starts.",
+      defaultValue = "NEW_EVENTS",
+      displayPosition = 127,
+      dependencies = {
+          @Dependency(configName = "subscribeToStreaming", triggeredByValues = "true"),
+          @Dependency(configName = "subscriptionType", triggeredByValues = "PLATFORM_EVENT"),
+      },
+      group = "SUBSCRIBE"
   )
-  public String salesforceNsHeaderPrefix = "salesforce.";
+  @ValueChooserModel(ReplayOptionChooserValues.class)
+  public ReplayOption replayOption = ReplayOption.NEW_EVENTS;
 
   @ConfigDefBean(groups = {"FORCE", "QUERY", "SUBSCRIBE", "ADVANCED"})
   public BasicConfig basicConfig = new BasicConfig();

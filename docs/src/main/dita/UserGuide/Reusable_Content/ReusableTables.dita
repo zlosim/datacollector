@@ -605,8 +605,8 @@
        <entry>Common Prefix <xref href="../Origins/AmazonS3-CommonPrefixPatterns.dita">
          <image href="../Graphics/icon_moreInfo.png" scale="10" id="image_wm3_212_wv"/>
         </xref></entry>
-       <entry>Optional common prefix that describes the location of the objects. When defined, the
-        common prefix acts as a root for the prefix pattern.</entry>
+       <entry id="entry-CommonPrefix">Optional common prefix that describes the location of the
+        objects. When defined, the common prefix acts as a root for the prefix pattern.</entry>
       </row>
       <row id="S3ObjectPathDelimiter">
        <entry>Delimiter</entry>
@@ -624,11 +624,9 @@
        <entry>Prefix Pattern <xref href="../Origins/AmazonS3-CommonPrefixPatterns.dita">
          <image href="../Graphics/icon_moreInfo.png" scale="10" id="image_tfr_bk5_ht"/>
         </xref></entry>
-       <entry>
-        Prefix pattern that describes the objects to be processed.
-        <p>You can include the entire path to the objects. You can also use Ant-style path patterns
-         to read objects recursively. </p>
-       </entry>
+       <entry id="entry-PrefixPattern">Prefix pattern that describes the objects to be processed.
+         <p>You can include the entire path to the objects. You can also use Ant-style path patterns
+         to read objects recursively. </p></entry>
       </row>
       <row id="S3BufferLimit">
        <entry>Buffer Limit (KB)</entry>
@@ -834,7 +832,7 @@
       <entry>Client secret that the HTTP service uses to authenticate the HTTP client.<p>Enter for
         the client credentials grant that uses a client ID and secret for authentication. Or, for
         the resource owner password credentials grant that requires a client ID and secret.</p><note
-        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_ClientID"/></entry>
+        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_ClientID"/></entry>
      </row>
      <row>
       <entry>User Name</entry>
@@ -844,7 +842,7 @@
      <row>
       <entry>Password</entry>
       <entry>Resource owner password.<p>Enter for the resource owner password credentials
-        grant.</p><note conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
+        grant.</p><note conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"/></entry>
      </row>
      <row>
       <entry>JWT Signing Algorithm</entry>
@@ -854,7 +852,7 @@
      <row>
       <entry>JWT Signing Key</entry>
       <entry>Base64 encoded key used to sign the JSON Web Token, if you selected a signing
-        algorithm.<note conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_JWTKey"/><p>Enter for
+        algorithm.<note conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_JWTKey"/><p>Enter for
         the JSON Web Tokens grant.</p></entry>
      </row>
      <row>
@@ -944,7 +942,10 @@
       <row id="P-D_HiveJDBCURL">
        <entry>JDBC URL</entry>
        <entry>JDBC URL for Hive. You can use the default, or replace the expression for the database
-        name with a specific database name when appropriate.</entry>
+        name with a specific database name when appropriate.<p>For more information about specifying
+         the URL, see our <xref
+          href="https://ask.streamsets.com/question/7/how-do-you-configure-a-hive-impala-jdbc-driver-for-data-collector/?answer=8#post-id-8"
+          format="html" scope="external">Ask StreamSets post</xref>.</p></entry>
       </row>
       <row id="P-D_HiveJDBCdriver">
        <entry>JDBC Driver Name</entry>
@@ -1445,7 +1446,7 @@
     <tbody>
      <row id="row-UseProxy">
       <entry>Use Proxy</entry>
-      <entry>Specifies whether to use a proxy to connect to Amazon S3.</entry>
+      <entry>Specifies whether to use a proxy to connect.</entry>
      </row>
      <row id="row-ProxyHost">
       <entry>Proxy Host</entry>
@@ -1462,7 +1463,7 @@
      <row id="row-ProxyPassword">
       <entry>Proxy Password</entry>
       <entry>Password for proxy credentials.<note
-        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
+        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"/></entry>
      </row>
      <row>
       <entry>Thread Pool Size for Parallel Uploads</entry>
@@ -1827,7 +1828,7 @@
      <row id="SalesforcePassword">
       <entry>Password</entry>
       <entry>Salesforce password. <note
-        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
+        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"/></entry>
      </row>
      <row id="SalesforceEndpoint">
       <entry>Auth Endpoint</entry>
@@ -1848,10 +1849,11 @@
      </row>
      <row id="SalesforceIncludeDeleted">
       <entry>Include Deleted Records</entry>
-      <entry>Determines whether the SOQL query also retrieves deleted records from the Salesforce
-       recycle bin. <p>The query can retrieve deleted records when the stage uses the Salesforce
-        SOAP API or the Bulk API version 39.0 or later. Earlier versions of the Bulk API do not
-        support retrieving deleted records.</p></entry>
+      <entry><ph id="ph-DeletedRecords1">Determines whether the SOQL query also retrieves deleted
+        records from the Salesforce recycle bin.</ph><p><ph id="ph-DeletedRecords2">The query can
+         retrieve deleted records when the stage uses the Salesforce SOAP API or the Bulk API
+         version 39.0 or later. Earlier versions of the Bulk API do not support retrieving deleted
+         records.</ph></p></entry>
      </row>
     </tbody>
    </tgroup>
@@ -1892,7 +1894,7 @@
      <row id="row_SalesforceProxyPassword">
       <entry>Proxy Password</entry>
       <entry>Password for proxy credentials.<note
-        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
+        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"/></entry>
      </row>
     </tbody>
    </tgroup>
@@ -1957,7 +1959,8 @@
      <tbody>
       <row>
        <entry>Read</entry>
-       <entry>View and monitor the pipeline, and see alerts. View existing snapshot data.</entry>
+       <entry>View <ph product="SDC">and monitor </ph>the pipeline, and see alerts. <ph
+         product="SDC">View existing snapshot data.</ph></entry>
       </row>
       <row>
        <entry>Write</entry>
@@ -1965,7 +1968,8 @@
       </row>
       <row>
        <entry>Execute</entry>
-       <entry>Start and stop the pipeline. Preview data and take a snapshot.</entry>
+       <entry>Start and stop the pipeline. Preview data<ph product="SDC"> and take a
+        snapshot</ph>.</entry>
       </row>
      </tbody>
     </tgroup>
@@ -2311,7 +2315,7 @@
      <row id="row-MongoPassword">
       <entry>Password</entry>
       <entry>MongoDB or LDAP password.<note
-        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
+        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"/></entry>
      </row>
     </tbody>
    </tgroup>
@@ -2569,19 +2573,19 @@ com_streamsets_pipeline_stage_plugin_navigator_NavigatorLineagePublisher</codebl
      <row id="row_KuduTableName">
       <entry>Table Name</entry>
       <entry>Table to write to. Enter one of the following: <p>
-       <ul id="ul_KuduTableName">
-        <li>Name of an existing Kudu table. If the table doesn't exist, the pipeline fails to
-         start.</li>
-        <li>Expression that evaluates to the name of an existing Kudu table. For example, if the
-         table name is stored in the "tableName" record attribute, enter the following
-         expression:<codeblock>${record:attribute('tableName')}</codeblock>If the table doesn't
-         exist, the records are treated as error records.</li>
-       </ul>
-      </p><p id="p_KuduTableNote">
-       <note>Impala creates Kudu tables with the following naming convention:
+        <ul id="ul_KuduTableName">
+         <li>Name of an existing Kudu table. If the table doesn't exist, the pipeline fails to
+          start.</li>
+         <li>Expression that evaluates to the name of an existing Kudu table. For example, if the
+          table name is stored in the "tableName" record attribute, enter the following
+          expression:<codeblock>${record:attribute('tableName')}</codeblock>If the table doesn't
+          exist, the records are treated as error records.</li>
+        </ul>
+       </p><p id="p_KuduTableNote">
+        <note>Impala creates Kudu tables with the following naming convention:
           <codeblock>impala:&lt;database name>.&lt;table name></codeblock><p>When using a table
           created by Impala, be sure to use the entire table name. </p></note>
-      </p></entry>
+       </p></entry>
      </row>
     </tbody>
    </tgroup>

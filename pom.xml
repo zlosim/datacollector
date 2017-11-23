@@ -22,7 +22,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector</artifactId>
-  <version>3.0.0.0-SNAPSHOT</version>
+  <version>3.1.0.0-SNAPSHOT</version>
   <description>StreamSets Data Collector</description>
   <name>StreamSets Data Collector</name>
   <packaging>pom</packaging>
@@ -93,22 +93,17 @@
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-api</artifactId>
-        <version>3.0.0.0-SNAPSHOT</version>
+        <version>3.1.0.0-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-spark-api</artifactId>
-        <version>3.0.0.0-SNAPSHOT</version>
+        <version>3.1.0.0-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>javax.servlet</groupId>
         <artifactId>javax.servlet-api</artifactId>
         <version>3.1.0</version>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-all</artifactId>
-        <version>4.0.41.Final</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -149,6 +144,8 @@
     <module>maprfs-protolib</module>
     <module>maprdb-protolib</module>
     <module>mapr_json-protolib</module>
+    <module>mapr_json-5_2-protolib</module>
+    <module>mapr_json-6_0-protolib</module>
     <module>hive-protolib</module>
 
     <module>sdc-kafka-api</module>
@@ -157,6 +154,8 @@
     <module>sdc-kafka_0_9</module>
     <module>sdc-kafka_0_9_mapr_5_1</module>
     <module>sdc-kafka_0_10</module>
+    <module>sdc-kafka_0_11</module>
+    <module>sdc-kafka_1_0</module>
     <module>kafka-common</module>
     <module>kafka_source-protolib</module>
     <module>kafka_multisource-protolib</module>
@@ -169,6 +168,7 @@
     <module>maprstreams-multisource-protolib</module>
     <module>jython-protolib</module>
     <module>groovy-protolib</module>
+    <module>kinetica-protolib</module>
 
     <module>elasticsearch-protolib</module>
 
@@ -259,6 +259,9 @@
             <exclude>**/.gitignore</exclude>
             <exclude>.gitreview</exclude>
             <exclude>.git/**</exclude>
+
+            <!-- Jenkins -->
+            <exclude>**/buildInfo*.properties</exclude>
 
             <!-- Maven -->
             <exclude>**/target/**</exclude>
@@ -419,15 +422,18 @@
              IMPORTANT: define a property matching the module directory name
              for every stage library here with the directory name as value
         -->
-        <apache-kafka_0_10-lib>apache-kafka_0_10-lib</apache-kafka_0_10-lib>
         <apache-kafka_0_8_1-lib>apache-kafka_0_8_1-lib</apache-kafka_0_8_1-lib>
         <apache-kafka_0_8_2-lib>apache-kafka_0_8_2-lib</apache-kafka_0_8_2-lib>
         <apache-kafka_0_9-lib>apache-kafka_0_9-lib</apache-kafka_0_9-lib>
+        <apache-kafka_0_10-lib>apache-kafka_0_10-lib</apache-kafka_0_10-lib>
+        <apache-kafka_0_11-lib>apache-kafka_0_11-lib</apache-kafka_0_11-lib>
+        <apache-kafka_1_0-lib>apache-kafka_1_0-lib</apache-kafka_1_0-lib>
         <apache-kudu_1_0-lib>apache-kudu_1_0-lib</apache-kudu_1_0-lib>
         <apache-kudu_1_1-lib>apache-kudu_1_1-lib</apache-kudu_1_1-lib>
         <apache-kudu_1_2-lib>apache-kudu_1_2-lib</apache-kudu_1_2-lib>
         <apache-kudu_1_3-lib>apache-kudu_1_3-lib</apache-kudu_1_3-lib>
         <apache-kudu_1_4-lib>apache-kudu_1_4-lib</apache-kudu_1_4-lib>
+        <apache-kudu_1_5-lib>apache-kudu_1_5-lib</apache-kudu_1_5-lib>
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
         <cdh_5_2-lib>cdh_5_2-lib</cdh_5_2-lib>
@@ -454,9 +460,11 @@
         <cdh_kafka_1_3-lib>cdh_kafka_1_3-lib</cdh_kafka_1_3-lib>
         <cdh_kafka_2_0-lib>cdh_kafka_2_0-lib</cdh_kafka_2_0-lib>
         <cdh_kafka_2_1-lib>cdh_kafka_2_1-lib</cdh_kafka_2_1-lib>
+        <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
+        <kinetica_6_0-lib>kinetica_6_0-lib</kinetica_6_0-lib>
         <hdp_2_2-lib>hdp_2_2-lib</hdp_2_2-lib>
         <hdp_2_3-lib>hdp_2_3-lib</hdp_2_3-lib>
         <hdp_2_3-hive1-lib>hdp_2_3-hive1-lib</hdp_2_3-hive1-lib>
@@ -465,13 +473,16 @@
         <hdp_2_5-lib>hdp_2_5-lib</hdp_2_5-lib>
         <hdp_2_5-flume-lib>hdp_2_5-flume-lib</hdp_2_5-flume-lib>
         <hdp_2_6-lib>hdp_2_6-lib</hdp_2_6-lib>
+        <hdp_2_6_1-hive1-lib>hdp_2_6_1-hive1-lib</hdp_2_6_1-hive1-lib>
         <hdp_2_6_2-hive1-lib>hdp_2_6_2-hive1-lib</hdp_2_6_2-hive1-lib>
+        <hdp_2_6-hive2-lib>hdp_2_6-hive2-lib</hdp_2_6-hive2-lib>
         <hdp_2_6-flume-lib>hdp_2_6-flume-lib</hdp_2_6-flume-lib>
         <jython_2_7-lib>jython_2_7-lib</jython_2_7-lib>
         <mapr_5_0-lib>mapr_5_0-lib</mapr_5_0-lib>
         <mapr_5_1-lib>mapr_5_1-lib</mapr_5_1-lib>
         <mapr_5_2-lib>mapr_5_2-lib</mapr_5_2-lib>
-        <mapr_6_0_lib>mapr_6_0-lib</mapr_6_0_lib>
+        <mapr_6_0-lib>mapr_6_0-lib</mapr_6_0-lib>
+        <mapr_6_0-mep4-lib>mapr_6_0-mep4-lib</mapr_6_0-mep4-lib>
         <mapr_spark_2_1_mep_3_0-lib>mapr_spark_2_1_mep_3_0-lib</mapr_spark_2_1_mep_3_0-lib>
         <mongodb_3-lib>mongodb_3-lib</mongodb_3-lib>
       </properties>
@@ -481,15 +492,18 @@
 
              IMPORTANT: the modules for all stage libraries
         -->
-        <module>apache-kafka_0_10-lib</module>
         <module>apache-kafka_0_8_1-lib</module>
         <module>apache-kafka_0_8_2-lib</module>
         <module>apache-kafka_0_9-lib</module>
+        <module>apache-kafka_0_10-lib</module>
+        <module>apache-kafka_0_11-lib</module>
+        <module>apache-kafka_1_0-lib</module>
         <module>apache-kudu_1_0-lib</module>
         <module>apache-kudu_1_1-lib</module>
         <module>apache-kudu_1_2-lib</module>
         <module>apache-kudu_1_3-lib</module>
         <module>apache-kudu_1_4-lib</module>
+        <module>apache-kudu_1_5-lib</module>
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
         <module>cdh_5_2-lib</module>
@@ -516,9 +530,11 @@
         <module>cdh_kafka_1_3-lib</module>
         <module>cdh_kafka_2_0-lib</module>
         <module>cdh_kafka_2_1-lib</module>
+        <module>cdh_kafka_3_0-lib</module>
         <module>cdh_spark_2_1_r1-lib</module>
         <module>elasticsearch_5-lib</module>
         <module>groovy_2_4-lib</module>
+        <module>kinetica_6_0-lib</module>
         <module>hdp_2_2-lib</module>
         <module>hdp_2_3-lib</module>
         <module>hdp_2_3-hive1-lib</module>
@@ -527,13 +543,16 @@
         <module>hdp_2_5-lib</module>
         <module>hdp_2_5-flume-lib</module>
         <module>hdp_2_6-lib</module>
+        <module>hdp_2_6_1-hive1-lib</module>
         <module>hdp_2_6_2-hive1-lib</module>
+        <module>hdp_2_6-hive2-lib</module>
         <module>hdp_2_6-flume-lib</module>
         <module>jython_2_7-lib</module>
         <module>mapr_5_0-lib</module>
         <module>mapr_5_1-lib</module>
         <module>mapr_5_2-lib</module>
         <module>mapr_6_0-lib</module>
+        <module>mapr_6_0-mep4-lib</module>
         <module>mapr_spark_2_1_mep_3_0-lib</module>
         <module>mongodb_3-lib</module>
       </modules>
@@ -555,21 +574,24 @@
              IMPORTANT: define a property matching the module directory name
              for all the sample dev stage libraries here with the directory name as value
         -->
-        <apache-kafka_0_10-lib>apache-kafka_0_10-lib</apache-kafka_0_10-lib>
+        <apache-kafka_1_0-lib>apache-kafka_1_0-lib</apache-kafka_1_0-lib>
         <apache-kudu_1_4-lib>apache-kudu_1_4-lib</apache-kudu_1_4-lib>
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
         <cdh_5_12-cluster-cdh_kafka_2_1-lib>cdh_5_12-cluster-cdh_kafka_2_1-lib</cdh_5_12-cluster-cdh_kafka_2_1-lib>
         <cdh_5_13-lib>cdh_5_13-lib</cdh_5_13-lib>
-        <cdh_kafka_2_1-lib>cdh_kafka_2_1-lib</cdh_kafka_2_1-lib>
+        <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
+        <kinetica_6_0-lib>kinetica_6_0-lib</kinetica_6_0-lib>
         <hdp_2_6-lib>hdp_2_6-lib</hdp_2_6-lib>
         <hdp_2_6_2-hive1-lib>hdp_2_6_2-hive1-lib</hdp_2_6_2-hive1-lib>
+        <hdp_2_6-hive2-lib>hdp_2_6-hive2-lib</hdp_2_6-hive2-lib>
         <hdp_2_6-flume-lib>hdp_2_6-flume-lib</hdp_2_6-flume-lib>
         <jython_2_7-lib>jython_2_7-lib</jython_2_7-lib>
         <mapr_6_0-lib>mapr_6_0-lib</mapr_6_0-lib>
+        <mapr_6_0-mep4-lib>mapr_6_0-mep4-lib</mapr_6_0-mep4-lib>
         <mapr_spark_2_1_mep_3_0-lib>mapr_spark_2_1_mep_3_0-lib</mapr_spark_2_1_mep_3_0-lib>
         <mongodb_3-lib>mongodb_3-lib</mongodb_3-lib>
         <azure-lib>azure_lib</azure-lib>
@@ -582,21 +604,24 @@
 
              IMPORTANT: the modules for the sample dev stage libraries
         -->
-        <module>apache-kafka_0_10-lib</module>
+        <module>apache-kafka_1_0-lib</module>
         <module>apache-kudu_1_4-lib</module>
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
         <module>cdh_5_12-cluster-cdh_kafka_2_1-lib</module>
         <module>cdh_5_13-lib</module>
-        <module>cdh_kafka_2_1-lib</module>
+        <module>cdh_kafka_3_0-lib</module>
         <module>cdh_spark_2_1_r1-lib</module>
         <module>elasticsearch_5-lib</module>
         <module>groovy_2_4-lib</module>
+        <module>kinetica_6_0-lib</module>
         <module>hdp_2_6-lib</module>
         <module>hdp_2_6_2-hive1-lib</module>
+        <module>hdp_2_6-hive2-lib</module>
         <module>hdp_2_6-flume-lib</module>
         <module>jython_2_7-lib</module>
         <module>mapr_6_0-lib</module>
+        <module>mapr_6_0-mep4-lib</module>
         <module>mapr_spark_2_1_mep_3_0-lib</module>
         <module>mongodb_3-lib</module>
       </modules>
@@ -841,6 +866,14 @@
       <releases><enabled>false</enabled></releases>
       <snapshots><enabled>true</enabled></snapshots>
     </repository>
+
+    <!-- for Kinetica -->
+    <repository>
+      <id>kinetica-releases</id>
+      <url>http://files.kinetica.com/nexus/content/repositories/releases/</url>
+    </repository>
+
+
   </repositories>
 
 </project>

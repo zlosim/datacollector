@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.config.dto.PipelineConfigAndRules;
@@ -61,6 +62,7 @@ import com.streamsets.datacollector.runner.production.SourceOffsetUpgrader;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.task.AbstractTask;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.datacollector.util.DisconnectedSecurityUtils;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.lib.security.http.AbstractSSOService;
 import com.streamsets.lib.security.http.DisconnectedSSOManager;
@@ -177,8 +179,8 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
         remoteDataCollector,
         eventSenderReceiver,
         jsonToFromDto,
-        new ArrayList<ClientEvent>(),
-        new ArrayList<ClientEvent>(),
+        new ArrayList<>(),
+        new ArrayList<>(),
         getStartupReportEvent(),
         executorService,
         defaultPingFrequency,
@@ -196,10 +198,20 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
       stageInfoList.add(new StageInfo(stageDef.getName(), stageDef.getVersion(), stageDef.getLibrary()));
     }
     BuildInfo buildInfo = new DataCollectorBuildInfo();
-    SDCInfoEvent sdcInfoEvent =
-      new SDCInfoEvent(runtimeInfo.getId(), runtimeInfo.getBaseHttpUrl(), System.getProperty("java.runtime.version"),
-        stageInfoList, new SDCBuildInfo(buildInfo.getVersion(), buildInfo.getBuiltBy(), buildInfo.getBuiltDate(),
-          buildInfo.getBuiltRepoSha(), buildInfo.getSourceMd5Checksum()), labelList, OFFSET_PROTOCOL_VERSION);
+    SDCInfoEvent sdcInfoEvent = new SDCInfoEvent(runtimeInfo.getId(),
+        runtimeInfo.getBaseHttpUrl(),
+        System.getProperty("java.runtime.version"),
+        stageInfoList,
+        new SDCBuildInfo(buildInfo.getVersion(),
+            buildInfo.getBuiltBy(),
+            buildInfo.getBuiltDate(),
+            buildInfo.getBuiltRepoSha(),
+            buildInfo.getSourceMd5Checksum()
+        ),
+        labelList,
+        OFFSET_PROTOCOL_VERSION,
+        Strings.emptyToNull(runtimeInfo.getDeploymentId())
+    );
     return new ClientEvent(UUID.randomUUID().toString(), appDestinationList, false, false, EventType.SDC_INFO_EVENT, sdcInfoEvent, null);
   }
 
@@ -492,20 +504,10 @@ public class RemoteEventHandlerTask extends AbstractTask implements EventHandler
             remoteDataCollector.syncAcl(((SyncAclEvent) event).getAcl());
             break;
           case SSO_DISCONNECTED_MODE_CREDENTIALS:
-            DisconnectedSsoCredentialsEvent disconectedSsoCredentialsEvent = (DisconnectedSsoCredentialsEvent) event;
-            try (OutputStream os = disconnectedCredentialsDataStore.getOutputStream()) {
-              ObjectMapperFactory.get().writeValue(os, disconectedSsoCredentialsEvent);
-              disconnectedCredentialsDataStore.commit(os);
-            } catch (IOException ex) {
-              LOG.warn(
-                  "Disconnected credentials maybe out of sync, could not write to '{}': {}",
-                  disconnectedCredentialsDataStore.getFile(),
-                  ex.toString(),
-                  ex
-              );
-            } finally {
-              disconnectedCredentialsDataStore.release();
-            }
+            DisconnectedSecurityUtils.writeDisconnectedCredentials(
+                disconnectedCredentialsDataStore,
+                (DisconnectedSsoCredentialsEvent) event
+            );
             break;
           default:
             ackEventMessage = Utils.format("Unrecognized event: '{}'", eventType);

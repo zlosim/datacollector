@@ -88,18 +88,23 @@
                             <tbody>
                                 <row>
                                     <entry>Schema Name</entry>
-                                    <entry>Name of the schema to use.</entry>
+                                    <entry>Name of the schema to use. The origin submits the schema
+                                        name in all caps by default. To use a lower- or mixed-case
+                                        name, enable the Case-Sensitive Names.</entry>
                                 </row>
                                 <row>
                                     <entry>Tables</entry>
-                                    <entry>Tables to use.</entry>
+                                    <entry>Tables to use.<p>The origin submits tables names in all
+                                            caps by default. To use lower- or mixed-case names,
+                                            enable the Case-Sensitive Names.</p></entry>
                                 </row>
                                 <row>
                                     <entry>Case-Sensitive Names</entry>
-                                    <entry>Enables case-sensitive schema, table, and column names.
-                                        Use when the schema, tables, or columns were created with
-                                        quotation marks surrounding the names.<p>By default, the
-                                            origin uses all caps for the names. </p></entry>
+                                    <entry>Enables using case-sensitive schema, table, and column
+                                        names. When not enabled, the origin submits names in all
+                                                caps.<p><ph
+                                                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/Oracletablenames"
+                                            /></p></entry>
                                 </row>
                                 <row>
                                     <entry>Initial Change <xref href="OracleCDC-InitialChange.dita">
@@ -124,8 +129,11 @@
                                 </row>
                                 <row>
                                     <entry>Start SCN</entry>
-                                    <entry>The system change number to read from when you start the
-                                        pipeline. For an SCN-based initial change.</entry>
+                                    <entry>The system change number to start reading from when you
+                                        start the pipeline. If the SCN cannot be found in the redo
+                                        logs, the origin continues reading from the next higher SCN
+                                        that is available in the redo logs.<p>For an SCN-based
+                                            initial change.</p></entry>
                                 </row>
                                 <row>
                                     <entry>Operations</entry>
@@ -153,8 +161,9 @@
                                     <entry>Determines the buffers that the origin uses. Select to
                                         use local <ph
                                             conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
-                                        /> buffers. By default, the Oracle LogMiner buffers the
-                                        data. </entry>
+                                        /> buffers. Clear to use Oracle LogMiner buffers. Generally,
+                                        using local buffers will enhance pipeline performance.<p>By
+                                            default, the origin uses local buffers. </p></entry>
                                 </row>
                                 <row>
                                     <entry>Buffer Location</entry>
@@ -190,6 +199,12 @@
                                         </ul><p>For a list of unsupported data types, see <xref
                                                 href="OracleCDC-UnsupportedTypes.dita#concept_gwp_d4n_n1b"
                                             />.</p></entry>
+                                </row>
+                                <row>
+                                    <entry>Add Unsupported Fields to Records</entry>
+                                    <entry>Includes fields with unsupported data types in the
+                                        record. Includes the field names and the unparsed string
+                                        values of the unsupported fields.</entry>
                                 </row>
                                 <row>
                                     <entry>Include Nulls</entry>
@@ -327,7 +342,7 @@
                                 <row>
                                     <entry>Password</entry>
                                     <entry>Password for the account.<note
-                                            conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames_JDBC"
+                                            conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/SDCDPM_Tip_Usernames"
                                         /></entry>
                                 </row>
                             </tbody>

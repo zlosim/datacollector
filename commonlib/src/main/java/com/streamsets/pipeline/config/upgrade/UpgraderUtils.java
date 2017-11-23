@@ -20,9 +20,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class UpgraderUtils {
 
@@ -46,6 +49,19 @@ public abstract class UpgraderUtils {
     for (int i=0; i<names.length; ) {
       nameMap.put(names[i], names[i+1]);
       i+=2;
+    }
+    return moveAllTo(configs, nameMap);
+  }
+
+  public static int prependToAll(List<Config> configs, String prefix, String... exceptProperties) {
+    final Set<String> except = new HashSet<>(Arrays.asList(exceptProperties));
+    Map<String, String> nameMap = new HashMap<>();
+    for (Config config : configs) {
+      final String name = config.getName();
+      if (except.contains(name)) {
+        continue;
+      }
+      nameMap.put(name, prefix + name);
     }
     return moveAllTo(configs, nameMap);
   }
@@ -102,5 +118,25 @@ public abstract class UpgraderUtils {
       }
     }
     return null;
+  }
+
+
+  /**
+   * <p>
+   * Returns a {@link Config} object from the supplied list with the supplied name, if it exists.  If a non-null
+   * Config is returned, the supplied list of {@code configs} will be modified such that it no longer contains the
+   * returned value.
+   * </p>
+   *
+   * @param configs list of config objects (will not be modified)
+   * @param name the config to return, based on name
+   * @return the config object by the given name, if it exists, and null otherwise
+   */
+  public static Config getAndRemoveConfigWithName(List<Config> configs, String name) {
+    final Config config = getConfigWithName(configs, name);
+    if (config != null) {
+      configs.remove(config);
+    }
+    return config;
   }
 }

@@ -18,6 +18,7 @@ package com.streamsets.pipeline.stage.origin.jdbc.cdc.oracle;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.CDCSourceConfigBean;
 
@@ -90,7 +91,7 @@ public class OracleCDCConfigBean {
       description = "Buffer changes in SDC memory or on Disk. Use this to reduce PGA memory usage on the DB",
       displayPosition = 80,
       group = "CDC",
-      defaultValue = "false"
+      defaultValue = "true"
   )
   public boolean bufferLocally;
 
@@ -133,6 +134,17 @@ public class OracleCDCConfigBean {
   )
   @ValueChooserModel(UnsupportedFieldTypeChooserValues.class)
   public UnsupportedFieldTypeValues unsupportedFieldOp;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Add unsupported fields to records",
+      description = "Add values of unsupported fields as unparsed strings to records",
+      displayPosition = 115,
+      group = "CDC",
+      defaultValue = "false"
+  )
+  public boolean sendUnsupportedFields;
 
   @ConfigDef(
       required = true,

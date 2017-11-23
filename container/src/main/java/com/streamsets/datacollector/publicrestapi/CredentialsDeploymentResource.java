@@ -16,11 +16,16 @@
 package com.streamsets.datacollector.publicrestapi;
 
 import com.google.common.base.Preconditions;
+import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.restapi.WebServerAgentCondition;
-import com.streamsets.lib.security.http.CredentialsBeanJson;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.lib.security.http.CredentialDeploymentResponseJson;
+import com.streamsets.lib.security.http.CredentialDeploymentStatus;
+import com.streamsets.lib.security.http.CredentialsBeanJson;
+import com.streamsets.lib.security.http.RemoteSSOService;
 import io.swagger.annotations.Api;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -59,12 +64,13 @@ import static java.nio.file.StandardOpenOption.WRITE;
 @Api(value = "deployment")
 @PermitAll
 public class CredentialsDeploymentResource {
-
   private static final Logger LOG = LoggerFactory.getLogger(CredentialsDeploymentResource.class);
-  public static final String DPM_AGENT_PUBLIC_KEY = "streamsets.cluster.manager.public.key";
+  private static final String APPLICATION_TOKEN_TXT = "application-token.txt";
+  private static final int MAX_FAILURES_ALLOWED = 100;
+
+  static final String DPM_AGENT_PUBLIC_KEY = "streamsets.cluster.manager.public.key";
   private final RuntimeInfo runtimeInfo;
   private final AtomicInteger failedCount = new AtomicInteger(0);
-  private static final int MAX_FAILURES_ALLOWED = 100;
 
   @Inject
   public CredentialsDeploymentResource(RuntimeInfo runtimeInfo) {
@@ -78,10 +84,18 @@ public class CredentialsDeploymentResource {
   public Response deployCredentials(CredentialsBeanJson credentialsBeanJson) throws Exception {
     LOG.info("Credentials have been received. Validating..");
     boolean isValid = validateSignature(credentialsBeanJson);
+    CredentialDeploymentStatus credentialDeploymentStatus;
     if (isValid) {
-      deployDPMToken(credentialsBeanJson);
-      handleKerberos(credentialsBeanJson);
-      WebServerAgentCondition.setCredentialsReceived();
+      if (!WebServerAgentCondition.getReceivedCredentials()) {
+        deployDPMToken(credentialsBeanJson);
+        handleKerberos(credentialsBeanJson);
+        WebServerAgentCondition.setCredentialsReceived();
+        credentialDeploymentStatus = CredentialDeploymentStatus.CREDENTIAL_USED_AND_DEPLOYED;
+      } else {
+        LOG.info("Credentials already received, so not using the token");
+        credentialDeploymentStatus = CredentialDeploymentStatus.CREDENTIAL_NOT_USED_ALREADY_DEPLOYED;
+      }
+      return Response.ok(new CredentialDeploymentResponseJson(runtimeInfo.getId(), credentialDeploymentStatus)).build();
     } else {
       LOG.warn("Received credentials were invalid, {} of maximum {} attempts",
           failedCount.incrementAndGet(), MAX_FAILURES_ALLOWED);
@@ -92,7 +106,6 @@ public class CredentialsDeploymentResource {
       }
       return Response.status(Response.Status.BAD_REQUEST).entity("Cannot validate the received credentials").build();
     }
-    return Response.ok(runtimeInfo.getId()).build();
   }
 
   private boolean validateSignature(CredentialsBeanJson credentialsBeanJson)
@@ -140,13 +153,31 @@ public class CredentialsDeploymentResource {
     try (FileReader reader = new FileReader(dpmProperties)) {
       conf.load(reader);
     }
-    conf.unset("dpm.base.url");
-    conf.set("dpm.enabled", true);
-    conf.set("dpm.appAuthToken", Configuration.FileRef.PREFIX + "application-token.txt" + Configuration.FileRef.SUFFIX);
+
+    conf.unset(RemoteSSOService.DPM_BASE_URL_CONFIG);
+    conf.set(RemoteSSOService.DPM_ENABLED, true);
+
+    conf.set(
+        RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG,
+        Configuration.FileRef.PREFIX + APPLICATION_TOKEN_TXT + Configuration.FileRef.SUFFIX
+    );
+
+    conf.set(RemoteSSOService.DPM_DEPLOYMENT_ID, credentialsBeanJson.getDeploymentId());
+    runtimeInfo.setDeploymentId(credentialsBeanJson.getDeploymentId());
+
+    if(!CollectionUtils.isEmpty(credentialsBeanJson.getLabels())) {
+      String labelsString = StringUtils.join(credentialsBeanJson.getLabels().toArray(), ",");
+      LOG.info("SDC will have the following Labels: {}", labelsString);
+      conf.set(RemoteEventHandlerTask.REMOTE_JOB_LABELS, labelsString);
+    }
     try (FileWriter writer = new FileWriter(dpmProperties)) {
       conf.save(writer);
     }
-    Files.write(Paths.get(dpmProperties.getPath()) , ("dpm.base.url=" + credentialsBeanJson.getDpmUrl()).getBytes(), StandardOpenOption.APPEND);
+    Files.write(
+        Paths.get(dpmProperties.getPath()) ,
+        (RemoteSSOService.DPM_BASE_URL_CONFIG + "=" + credentialsBeanJson.getDpmUrl()).getBytes(),
+        StandardOpenOption.APPEND
+    );
     runtimeInfo.setDPMEnabled(true);
     LOG.info("DPM token deployed");
   }

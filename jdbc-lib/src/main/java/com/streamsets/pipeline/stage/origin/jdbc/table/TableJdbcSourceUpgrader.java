@@ -51,6 +51,12 @@ public class TableJdbcSourceUpgrader implements StageUpgrader{
         // fall through
       case 3:
         upgradeV3ToV4(configs);
+        if (toVersion == 4) {
+          break;
+        }
+        // fall through
+      case 4:
+        upgradeV4ToV5(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
@@ -113,5 +119,23 @@ public class TableJdbcSourceUpgrader implements StageUpgrader{
           TableConfigBean.ENABLE_NON_INCREMENTAL_DEFAULT_VALUE
       );
     }
+  }
+
+  private void upgradeV4ToV5(List<Config> configs) {
+    configs.add(new Config(TableConfigBean.ALLOW_LATE_TABLE, false));
+
+    // upgrade queryInterval to queriesPerSecond
+    final String numThreadsField = "tableJdbcConfigBean.numberOfThreads";
+    final Config numThreadsConfig = UpgraderUtils.getConfigWithName(configs, numThreadsField);
+    if (numThreadsConfig == null) {
+      throw new IllegalStateException(String.format(
+          "%s config was not found in configs: %s",
+          numThreadsField,
+          configs
+      ));
+    }
+    final int numThreads = (int) numThreadsConfig.getValue();
+
+    CommonSourceConfigBean.upgradeRateLimitConfigs(configs, "commonSourceConfigBean", numThreads);
   }
 }

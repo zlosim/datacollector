@@ -25,7 +25,7 @@ import com.streamsets.pipeline.config.DataFormat;
 
 @StageDef(
     version = 1,
-    label = "Google Cloud Storage Error Destination",
+    label = "Write to Google Cloud Storage",
     description = "Writes error records to Google Cloud Storage",
     onlineHelpRefUrl = "index.html#Pipeline_Configuration/ErrorHandling.html#concept_kgc_l4y_5r"
 )

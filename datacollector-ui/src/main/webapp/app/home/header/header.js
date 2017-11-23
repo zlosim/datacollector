@@ -410,7 +410,7 @@ angular
 
               $timeout(function() {
                 $rootScope.common.successList.push({
-                  message: 'Successfully Published Pipeline to DPM Pipeline Repository: ' +
+                  message: 'Successfully Published Pipeline to SCH Pipeline Repository: ' +
                   authService.getRemoteBaseUrl() + ' New Pipeline Commit Version - ' + metadata['dpm.pipeline.version']
                 });
               });
@@ -464,6 +464,13 @@ angular
             }
           });
         }
+      },
+
+      /**
+       * Returns true if pipeline is Edge pipeline
+       */
+      isEdgePipeline: function() {
+        return $scope.executionMode === 'EDGE'
       }
     });
 

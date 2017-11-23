@@ -23,6 +23,7 @@ import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.lib.security.http.RemoteSSOService;
 import com.streamsets.pipeline.api.impl.Utils;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,7 @@ public abstract class RuntimeInfo {
   public static final String STATIC_WEB_DIR = ".static-web.dir";
   public static final String TRANSIENT_ENVIRONMENT = "sdc.transient-env";
   public static final String UNDEF = "UNDEF";
-  public static final String CALLBACK_URL = "/public-rest/v1/cluster/callback";
+  public static final String CALLBACK_URL = "/public-rest/v1/cluster/callbackWithResponse";
 
 
   public static final String SECURITY_PREFIX = "java.security.";
@@ -60,6 +61,7 @@ public abstract class RuntimeInfo {
 
   private boolean DPMEnabled;
   private boolean aclEnabled;
+  private String deploymentId;
 
   private final static String USER_ROLE = "user";
 
@@ -119,7 +121,7 @@ public abstract class RuntimeInfo {
   }
 
   public String getBaseHttpUrl() {
-    return httpUrl;
+    return StringUtils.stripEnd(httpUrl, "/");
   }
 
   public String getStaticWebDir() {
@@ -254,6 +256,14 @@ public abstract class RuntimeInfo {
     return this.remoteRegistrationSuccessful;
   }
 
+  public String getDeploymentId() {
+    return deploymentId;
+  }
+
+  public void setDeploymentId(String deploymentId) {
+    this.deploymentId = deploymentId;
+  }
+
   public void setSSLContext(SSLContext sslContext) {
     this.sslContext = sslContext;
   }
@@ -296,6 +306,8 @@ public abstract class RuntimeInfo {
         runtimeInfo.setAppAuthToken(appAuthToken);
         boolean isDPMEnabled = conf.get(RemoteSSOService.DPM_ENABLED, RemoteSSOService.DPM_ENABLED_DEFAULT);
         runtimeInfo.setDPMEnabled(isDPMEnabled);
+        String deploymentId = conf.get(RemoteSSOService.DPM_DEPLOYMENT_ID, null);
+        runtimeInfo.setDeploymentId(deploymentId);
         boolean aclEnabled = conf.get(PIPELINE_ACCESS_CONTROL_ENABLED, PIPELINE_ACCESS_CONTROL_ENABLED_DEFAULT);
         String auth = conf.get(WebServerTask.AUTHENTICATION_KEY, WebServerTask.AUTHENTICATION_DEFAULT);
         if (aclEnabled && (!"none".equals(auth) || isDPMEnabled)) {

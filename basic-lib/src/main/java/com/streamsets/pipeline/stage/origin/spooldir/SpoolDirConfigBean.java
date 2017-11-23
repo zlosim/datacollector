@@ -52,6 +52,18 @@ public class SpoolDirConfigBean {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "1",
+      label = "Number of Threads",
+      description = "Number of parallel threads that read data",
+      displayPosition = 11,
+      group = "FILES",
+      min = 1
+  )
+  public int numberOfThreads = 1;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.MODEL,
       label = "File Name Pattern Mode",
       description = "Select whether the File Name Pattern specified uses glob pattern syntax or regex syntax.",
@@ -157,8 +169,6 @@ public class SpoolDirConfigBean {
           "pipeline to fail.",
       displayPosition = 60,
       group = "FILES",
-      dependsOn = "dataFormat",
-      triggeredByValue = { "TEXT", "JSON", "XML", "DELIMITED", "LOG", "WHOLE_FILE"},
       min = 1,
       max = Integer.MAX_VALUE
   )
@@ -171,9 +181,7 @@ public class SpoolDirConfigBean {
       label = "First File to Process",
       description = "When configured, the Data Collector does not process earlier (naturally ascending order) file names",
       displayPosition = 50,
-      group = "FILES",
-      dependsOn = "dataFormat",
-      triggeredByValue = { "TEXT", "JSON", "XML", "DELIMITED", "LOG", "WHOLE_FILE"}
+      group = "FILES"
   )
   public String initialFileToProcess;
 

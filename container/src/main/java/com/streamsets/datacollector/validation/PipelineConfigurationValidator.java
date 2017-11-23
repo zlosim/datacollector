@@ -39,6 +39,7 @@ import com.streamsets.datacollector.creation.StageConfigBean;
 import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.el.JvmEL;
+import com.streamsets.datacollector.execution.runner.common.Constants;
 import com.streamsets.datacollector.record.PathElement;
 import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
@@ -286,7 +287,8 @@ public class PipelineConfigurationValidator {
       StageConfiguration stageConf,
       ExecutionMode executionMode,
       List<Issue> issues,
-      boolean errorStage
+      String configGroup,
+      String configName
   ) {
     boolean canPreview = true;
     IssueCreator issueCreator = IssueCreator.getStage(stageConf.getInstanceName());
@@ -294,12 +296,12 @@ public class PipelineConfigurationValidator {
     if (stageDef != null) {
       if (!stageDef.getExecutionModes().contains(executionMode)) {
         canPreview = false;
-        if (errorStage) {
+        if (configGroup != null && configName != null) {
           issues.add(
               IssueCreator.getPipeline().create(
-                  PipelineGroups.BAD_RECORDS.name(),
-                  "badRecordsHandling",
-                  ValidationError.VALIDATION_0074,
+                  configGroup,
+                  configName,
+                  ValidationError.VALIDATION_0071,
                   stageDef.getLabel(),
                   stageDef.getLibraryLabel(),
                   executionMode.getLabel()
@@ -337,10 +339,25 @@ public class PipelineConfigurationValidator {
     if (errors.isEmpty()) {
       StageConfiguration errorStage = pipelineConf.getErrorStage();
       if (errorStage != null) {
-        canPreview &= validateStageExecutionMode(errorStage, pipelineExecutionMode, errors, true);
+        canPreview &= validateStageExecutionMode(
+            errorStage,
+            pipelineExecutionMode,
+            errors,
+            PipelineGroups.BAD_RECORDS.name(),
+            "badRecordsHandling"
+        );
+      }
+      StageConfiguration statsStage = pipelineConf.getStatsAggregatorStage();
+      if (statsStage != null) {
+        canPreview &= validateStageExecutionMode(statsStage,
+            pipelineExecutionMode,
+            errors,
+            PipelineGroups.STATS.name(),
+            "statsAggregatorStage"
+        );
       }
       for (StageConfiguration stageConf : pipelineConf.getStages()) {
-        canPreview &= validateStageExecutionMode(stageConf, pipelineExecutionMode, errors, false);
+        canPreview &= validateStageExecutionMode(stageConf, pipelineExecutionMode, errors, null, null);
       }
     } else {
       canPreview = false;
@@ -377,14 +394,14 @@ public class PipelineConfigurationValidator {
     boolean canPreview = true;
     if (pipelineBean != null) {
       PipelineConfigBean config = pipelineBean.getConfig();
-      if (config.memoryLimit > JvmEL.jvmMaxMemoryMB() * 0.85) {
+      if (config.memoryLimit > JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION) {
         issues.add(
             IssueCreator.getPipeline().create(
                 "",
                 "memoryLimit",
                 ValidationError.VALIDATION_0063,
                 config.memoryLimit,
-                JvmEL.jvmMaxMemoryMB() * 0.85)
+                JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION)
         );
         canPreview = false;
       }

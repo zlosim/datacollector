@@ -15,8 +15,10 @@
  */
 package com.streamsets.datacollector.publicrestapi;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
+import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.restapi.ConfigurationTestInjector;
 import com.streamsets.datacollector.restapi.RuntimeInfoTestInjector;
@@ -24,8 +26,12 @@ import com.streamsets.datacollector.restapi.StageLibraryResource;
 import com.streamsets.datacollector.restapi.StageLibraryResourceConfig;
 import com.streamsets.datacollector.restapi.StartupAuthorizationFeature;
 import com.streamsets.datacollector.restapi.WebServerAgentCondition;
-import com.streamsets.lib.security.http.CredentialsBeanJson;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.lib.security.http.CredentialDeploymentResponseJson;
+import com.streamsets.lib.security.http.CredentialDeploymentStatus;
+import com.streamsets.lib.security.http.CredentialsBeanJson;
+import com.streamsets.lib.security.http.RemoteSSOService;
+import org.apache.commons.lang3.StringUtils;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.glassfish.jersey.server.ResourceConfig;
@@ -42,16 +48,21 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Properties;
 
 import static com.streamsets.datacollector.publicrestapi.CredentialsDeploymentResource.DPM_AGENT_PUBLIC_KEY;
 
 public class TestCredentialsDeploymentResource extends JerseyTest{
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Before
   public void setUp() throws Exception {
@@ -113,14 +124,26 @@ public class TestCredentialsDeploymentResource extends JerseyTest{
     Signature sig = Signature.getInstance("SHA256withRSA");
     sig.initSign(keys.getPrivate());
     sig.update(token.getBytes(Charsets.UTF_8));
+    List<String> labels = Arrays.asList("deployment-prod-1", "deployment-prod-2");
     CredentialsBeanJson json =
-        new CredentialsBeanJson(token, "streamsets/172.1.1.0@EXAMPLE.COM",
+        new CredentialsBeanJson(token,
+            "streamsets/172.1.1.0@EXAMPLE.COM",
             Base64.getEncoder().encodeToString("testKeytab".getBytes(Charsets.UTF_8)),
-            Base64.getEncoder().encodeToString(sig.sign()), "https://dpm.streamsets.com:18631");
+            Base64.getEncoder().encodeToString(sig.sign()),
+            "https://dpm.streamsets.com:18631",
+            Arrays.asList("deployment-prod-1", "deployment-prod-2"),
+            "deployment1:org"
+        );
 
     try {
       response = target("/v1/deployment/deployCredentials").request().post(Entity.json(json));
       Assert.assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+      CredentialDeploymentResponseJson responseJson =
+          OBJECT_MAPPER.readValue((InputStream) response.getEntity(), CredentialDeploymentResponseJson.class);
+      Assert.assertEquals(
+          CredentialDeploymentStatus.CREDENTIAL_USED_AND_DEPLOYED,
+          responseJson.getCredentialDeploymentStatus()
+      );
 
       // Verify sdc.properties
       sdcProps = new Properties();
@@ -148,6 +171,11 @@ public class TestCredentialsDeploymentResource extends JerseyTest{
           dpmProps.getProperty("dpm.appAuthToken"));
       Assert.assertEquals("https://dpm.streamsets.com:18631", dpmProps.getProperty("dpm.base.url"));
 
+      Assert.assertEquals(StringUtils.join(labels.toArray(), ","), dpmProps.getProperty(RemoteEventHandlerTask
+          .REMOTE_JOB_LABELS));
+      Assert.assertEquals("deployment1:org", dpmProps.getProperty(RemoteSSOService.DPM_DEPLOYMENT_ID));
+
+
       File tokenFile = new File(RuntimeInfoTestInjector.confDir, "application-token.txt");
       try (FileInputStream fr = new FileInputStream(tokenFile)) {
         int len = token.length();
@@ -155,6 +183,15 @@ public class TestCredentialsDeploymentResource extends JerseyTest{
         Assert.assertEquals(len, fr.read(tokenBytes));
         Assert.assertEquals(token, new String(tokenBytes, Charsets.UTF_8));
       }
+      //Test redeploying the credentials again
+      response = target("/v1/deployment/deployCredentials").request().post(Entity.json(json));
+      responseJson =
+          OBJECT_MAPPER.readValue((InputStream) response.getEntity(), CredentialDeploymentResponseJson.class);
+      Assert.assertEquals(
+          CredentialDeploymentStatus.CREDENTIAL_NOT_USED_ALREADY_DEPLOYED,
+          responseJson.getCredentialDeploymentStatus()
+      );
+
     } finally {
       if (response != null) {
         response.close();

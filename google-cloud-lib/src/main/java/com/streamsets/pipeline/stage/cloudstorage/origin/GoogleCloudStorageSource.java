@@ -20,6 +20,7 @@ import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.common.base.Strings;
 import com.google.common.collect.MinMaxPriorityQueue;
@@ -30,11 +31,15 @@ import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.lib.event.CommonEvents;
 import com.streamsets.pipeline.lib.hashing.HashingUtil;
 import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
 import com.streamsets.pipeline.lib.parser.DataParser;
+import com.streamsets.pipeline.lib.parser.DataParserException;
+import com.streamsets.pipeline.lib.parser.RecoverableDataParserException;
 import com.streamsets.pipeline.lib.util.AntPathMatcher;
 import com.streamsets.pipeline.stage.cloudstorage.lib.Errors;
+import com.streamsets.pipeline.stage.cloudstorage.lib.GcsUtil;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -66,6 +71,11 @@ public class GoogleCloudStorageSource extends BaseSource {
   private CredentialsProvider credentialsProvider;
   private ELEval rateLimitElEval;
   private ELVars rateLimitElVars;
+  private long noMoreDataRecordCount;
+  private long noMoreDataErrorCount;
+  private long noMoreDataFileCount;
+  private Blob blob = null;
+  private GcsObjectPostProcessingHandler errorBlobHandler;
 
   GoogleCloudStorageSource(GCSOriginConfig gcsOriginConfig) {
     this.gcsOriginConfig = gcsOriginConfig;
@@ -105,7 +115,7 @@ public class GoogleCloudStorageSource extends BaseSource {
 
     rateLimitElEval = FileRefUtil.createElEvalForRateLimit(getContext());
     rateLimitElVars = getContext().createELVars();
-
+    errorBlobHandler = new GcsObjectPostProcessingHandler(storage, gcsOriginConfig.gcsOriginErrorConfig);
     return issues;
   }
 
@@ -128,13 +138,25 @@ public class GoogleCloudStorageSource extends BaseSource {
     }
 
     if (minMaxPriorityQueue.isEmpty()) {
-      //No more data available -> TODO: SDC-7581
+      //No more data available
+      if (noMoreDataRecordCount > 0 || noMoreDataErrorCount > 0) {
+        LOG.info("sending no-more-data event.  records {} errors {} files {} ",
+            noMoreDataRecordCount, noMoreDataErrorCount, noMoreDataFileCount);
+        CommonEvents.NO_MORE_DATA.create(getContext())
+            .with("record-count", noMoreDataRecordCount)
+            .with("error-count", noMoreDataErrorCount)
+            .with("file-count", noMoreDataFileCount)
+            .createAndSend();
+        noMoreDataRecordCount = 0;
+        noMoreDataErrorCount = 0;
+        noMoreDataFileCount = 0;
+      }
       return lastSourceOffset;
     }
 
     // Process Blob
     if (parser == null) {
-      Blob blob = minMaxPriorityQueue.pollFirst();
+      blob = minMaxPriorityQueue.pollFirst();
 
       if (blobId.equals(blob.getGeneratedId()) && fileOffset.equals("-1")) {
         return lastSourceOffset;
@@ -183,30 +205,44 @@ public class GoogleCloudStorageSource extends BaseSource {
     try {
       int recordCount = 0;
       while (recordCount < maxBatchSize) {
-        Record record = parser.parse();
-        if (record != null) {
-          batchMaker.addRecord(record);
-          fileOffset = parser.getOffset();
-        } else {
-          fileOffset = END_FILE_OFFSET;
-          IOUtils.closeQuietly(parser);
-          parser = null;
-          break;
+        try {
+          Record record = parser.parse();
+          if (record != null) {
+            batchMaker.addRecord(record);
+            fileOffset = parser.getOffset();
+            noMoreDataRecordCount++;
+            recordCount++;
+          } else {
+            fileOffset = END_FILE_OFFSET;
+            IOUtils.closeQuietly(parser);
+            parser = null;
+            noMoreDataFileCount++;
+            break;
+          }
+        } catch (RecoverableDataParserException e) {
+          LOG.error("Error when parsing record from object '{}' at offset '{}'. Reason : {}", blobId, fileOffset, e);
+          getContext().toError(e.getUnparsedRecord(), e.getErrorCode(), e.getParams());
         }
-        recordCount++;
       }
-    } catch (IOException e) {
-      LOG.error("Error when parsing records. Reason : {}", e);
-      getContext().reportError(Errors.GCS_00, e);
+    } catch (IOException | DataParserException e) {
+      LOG.error("Error when parsing records from Object '{}'. Reason : {}, moving to next file", blobId, e);
+      getContext().reportError(Errors.GCS_00, blobId, fileOffset ,e);
+      fileOffset = END_FILE_OFFSET;
+      noMoreDataErrorCount++;
+      try {
+        errorBlobHandler.handleError(blob.getBlobId());
+      } catch (StorageException se) {
+        LOG.error("Error handling failed for {}. Reason{}", blobId, e);
+        getContext().reportError(Errors.GCS_06, blobId, se);
+      }
     }
-
     return String.format(OFFSET_FORMAT, minTimestamp, fileOffset, blobId);
   }
 
   private void poolForFiles(long minTimeStamp) {
     Page<Blob> blobs = storage.list(
         gcsOriginConfig.bucketTemplate,
-        Storage.BlobListOption.prefix(gcsOriginConfig.commonPrefix)
+        Storage.BlobListOption.prefix(GcsUtil.normalizePrefix(gcsOriginConfig.commonPrefix))
     );
     blobs.iterateAll().forEach(blob ->  {
       if (isBlobEligible(blob, minTimeStamp)) {
@@ -216,8 +252,11 @@ public class GoogleCloudStorageSource extends BaseSource {
   }
 
   private boolean isBlobEligible(Blob blob, long minTimeStamp) {
+    String blobName = blob.getName();
+    String prefixToMatch =  blobName.substring(
+        GcsUtil.normalizePrefix(gcsOriginConfig.commonPrefix).length(), blobName.length());
     return blob.getSize() > 0 && blob.getUpdateTime() > minTimeStamp
-        && antPathMatcher.match(gcsOriginConfig.prefixPattern, blob.getName());
+        && antPathMatcher.match(gcsOriginConfig.prefixPattern, prefixToMatch);
   }
 
   private long getMinTimestampFromOffset(String offset) {
@@ -235,5 +274,6 @@ public class GoogleCloudStorageSource extends BaseSource {
   @Override
   public void destroy() {
     IOUtils.closeQuietly(parser);
+    blob = null;
   }
 }

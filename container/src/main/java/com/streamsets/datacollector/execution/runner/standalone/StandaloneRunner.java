@@ -127,6 +127,14 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
       PipelineStatus.STOPPING
   );
 
+  private static final ImmutableSet<PipelineStatus> FORCE_QUIT_ALLOWED_STATES = ImmutableSet.of(
+    PipelineStatus.STOPPING,
+    PipelineStatus.STOPPING_ERROR,
+    PipelineStatus.STARTING_ERROR,
+    PipelineStatus.RUNNING_ERROR,
+    PipelineStatus.FINISHING
+  );
+
   @Inject PipelineStoreTask pipelineStoreTask;
   @Inject PipelineStateStore pipelineStateStore;
   @Inject SnapshotStore snapshotStore;
@@ -220,7 +228,9 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
       PipelineStatus.DISCONNECTED
     ))
     .put(PipelineStatus.DISCONNECTED, ImmutableSet.of(
-      PipelineStatus.CONNECTING
+      PipelineStatus.CONNECTING,
+      PipelineStatus.STARTING,
+      PipelineStatus.RETRY
     ))
     .put(PipelineStatus.CONNECTING, ImmutableSet.of(
       PipelineStatus.STARTING,
@@ -344,7 +354,6 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
           if (attributes != null && attributes.containsKey(ProductionPipeline.RUNTIME_PARAMETERS_ATTR)) {
             runtimeParameters = (Map<String, Object>) attributes.get(ProductionPipeline.RUNTIME_PARAMETERS_ATTR);
           }
-          validateAndSetStateTransition(user, PipelineStatus.CONNECTING, msg, null);
           retryOrStart(user);
           break;
         default:
@@ -455,9 +464,11 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
 
   @Override
   public void forceQuit(String user) throws PipelineException {
-    LOG.debug("Force Quit the pipeline '{}'::'{}'", name,  rev);
-    if (pipelineRunnable != null && pipelineRunnable.isStopped() && getState().getStatus() == PipelineStatus.STOPPING ) {
+    if (pipelineRunnable != null && FORCE_QUIT_ALLOWED_STATES.contains(getState().getStatus())) {
+      LOG.debug("Force Quit the pipeline '{}'::'{}'", name,  rev);
       pipelineRunnable.forceQuit();
+    } else {
+      LOG.info("Ignoring force quit request because pipeline is in {} state", getState().getStatus());
     }
   }
 
@@ -696,9 +707,12 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
     MemoryLimitConfiguration memoryLimitConfiguration = new MemoryLimitConfiguration();
     MemoryLimitExceeded memoryLimitExceeded = pipelineConfiguration.memoryLimitExceeded;
     long memoryLimit = pipelineConfiguration.memoryLimit;
-    if (memoryLimit > JvmEL.jvmMaxMemoryMB() * 0.85) {
-      throw new PipelineRuntimeException(ValidationError.VALIDATION_0063, memoryLimit,
-                                         "above the maximum", JvmEL.jvmMaxMemoryMB() * 0.85);
+    if (memoryLimit > JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION) {
+      throw new PipelineRuntimeException(ValidationError.VALIDATION_0063,
+          memoryLimit,
+          "above the maximum",
+          JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION
+      );
     }
     if (memoryLimitExceeded != null && memoryLimit > 0) {
       memoryLimitConfiguration = new MemoryLimitConfiguration(memoryLimitExceeded, memoryLimit);

@@ -109,6 +109,8 @@ public enum JdbcErrors implements ErrorCode {
       "The transaction was longer than transaction window"),
   JDBC_85("Following fields have unsupported field types: '{}' in table '{}'"),
   JDBC_86("Redo log files for the current session window are no longer available"),
+  JDBC_87("Interrupted while waiting to read data"),
+  JDBC_88("'{}' is not a valid decimal number"),
 
   JDBC_100("Could not enable partitioning for table {}: {}"),
   JDBC_101("Invalid partition size for table {}: {}"),
@@ -117,7 +119,8 @@ public enum JdbcErrors implements ErrorCode {
   JDBC_200("Tables are not change tracking enabled: {}"),
   JDBC_201("Invalid Change Tracking Current Version: {}"),
   JDBC_202("Error while getting min valid version: {}"),
-
+  JDBC_203("Error while fetch tables from metadata: {}"),
+  JDBC_204("Hex '{}' cannot be converted into a byte array"),
   ;
 
   private final String msg;

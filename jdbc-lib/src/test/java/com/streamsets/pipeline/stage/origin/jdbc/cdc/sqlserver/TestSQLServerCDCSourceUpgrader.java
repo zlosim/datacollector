@@ -18,6 +18,8 @@ package com.streamsets.pipeline.stage.origin.jdbc.cdc.sqlserver;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.config.upgrade.UpgraderTestUtils;
+import com.streamsets.pipeline.config.upgrade.UpgraderUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,6 +35,7 @@ public class TestSQLServerCDCSourceUpgrader {
   private static final String TABLE_EXCLUSION_CONFIG = "tableExclusionPattern";
   private static final String TABLE_INITIALOFFSET_CONFIG = "initialOffset";
   private static final String TABLE_CAPTURE_INSTANCE_CONFIG = "capture_instance";
+  private static final String TABLE_TIMEZONE_ID = "cdcTableJdbcConfigBean.timeZoneID";
 
   @Test
   public void testUpgradeV1toV2WithBasicConfig() throws StageException {
@@ -53,9 +56,12 @@ public class TestSQLServerCDCSourceUpgrader {
     SQLServerCDCSourceUpgrader sqlServerCDCSourceUpgrader = new SQLServerCDCSourceUpgrader();
     sqlServerCDCSourceUpgrader.upgrade("a", "b", "c", 1, 2, configs);
 
-    Assert.assertEquals(1, configs.size());
+    Assert.assertEquals(2, configs.size());
 
-    ArrayList<HashMap<String, String>> tableConfigs = (ArrayList<HashMap<String, String>>)configs.get(0).getValue();
+    // "Allow Late Table" config returns false
+    Assert.assertEquals(false, configs.get(0).getValue());
+
+    ArrayList<HashMap<String, String>> tableConfigs = (ArrayList<HashMap<String, String>>)configs.get(1).getValue();
     Assert.assertEquals(1, tableConfigs.size());
 
     HashMap<String, String> tableConfig = tableConfigs.get(0);
@@ -91,9 +97,12 @@ public class TestSQLServerCDCSourceUpgrader {
     SQLServerCDCSourceUpgrader sqlServerCDCSourceUpgrader = new SQLServerCDCSourceUpgrader();
     sqlServerCDCSourceUpgrader.upgrade("a", "b", "c", 1, 2, configs);
 
-    Assert.assertEquals(1, configs.size());
+    Assert.assertEquals(2, configs.size());
 
-    ArrayList<HashMap<String, String>> tableConfigs = (ArrayList<HashMap<String, String>>)configs.get(0).getValue();
+    // "Allow Late Table" config returns false
+    Assert.assertEquals(false, configs.get(0).getValue());
+
+    ArrayList<HashMap<String, String>> tableConfigs = (ArrayList<HashMap<String, String>>)configs.get(1).getValue();
     Assert.assertEquals(1, tableConfigs.size());
 
     HashMap<String, String> tableConfig = tableConfigs.get(0);
@@ -103,5 +112,65 @@ public class TestSQLServerCDCSourceUpgrader {
     Assert.assertEquals(initalOffset1, tableConfig.get(TABLE_INITIALOFFSET_CONFIG));
   }
 
+  @Test
+  public void testUpgradeV1toV3() throws StageException {
+    List<Config> configs = new ArrayList<>();
 
+    configs.add(new Config("cdcTableJdbcConfigBean.numberOfThreads", 4));
+    final String queryIntervalField = "commonSourceConfigBean.queryInterval";
+    configs.add(new Config(queryIntervalField, "${10 * SECONDS}"));
+
+    List<Map<String, String>> oldTableConfigs = new ArrayList<>();
+
+    final String schema1 = "dbo";
+    final String table1 = "table1_%";
+    final String exclusion1 = "exception-%";
+    final String initalOffset1 = "0000";
+
+    Map<String, String> tableConfig1 = ImmutableMap.of(
+        SCHEMA_CONFIG, schema1,
+        TABLEPATTERN_CONFIG, table1,
+        TABLE_EXCLUSION_CONFIG, exclusion1,
+        TABLE_INITIALOFFSET_CONFIG, initalOffset1
+    );
+
+    oldTableConfigs.add(tableConfig1);
+
+    // table config changes from V2
+    configs.add(new Config(TABLECONFIG, oldTableConfigs));
+    // removed timezone config from V3
+    configs.add(new Config(TABLE_TIMEZONE_ID, ""));
+
+    Assert.assertEquals(4, configs.size());
+
+    SQLServerCDCSourceUpgrader sqlServerCDCSourceUpgrader = new SQLServerCDCSourceUpgrader();
+    sqlServerCDCSourceUpgrader.upgrade("a", "b", "c", 1, 3, configs);
+
+    Assert.assertEquals(4, configs.size());
+
+    // Assertion for V2
+    // "Allow Late Table" config returns false
+    UpgraderTestUtils.assertExists(configs, SQLServerCDCSourceUpgrader.ALLOW_LATE_TABLE, false);
+
+    Config tableConfigObj = UpgraderUtils.getConfigWithName(configs, SQLServerCDCSourceUpgrader.TABLECONFIG);
+    ArrayList<HashMap<String, String>> tableConfigs = (ArrayList<HashMap<String, String>>) tableConfigObj.getValue();
+    Assert.assertEquals(1, tableConfigs.size());
+
+    HashMap<String, String> tableConfig = tableConfigs.get(0);
+
+    Assert.assertEquals(schema1 + "_" + table1, tableConfig.get(TABLE_CAPTURE_INSTANCE_CONFIG));
+    Assert.assertEquals(exclusion1, tableConfig.get(TABLE_EXCLUSION_CONFIG));
+    Assert.assertEquals(initalOffset1, tableConfig.get(TABLE_INITIALOFFSET_CONFIG));
+
+    // TABLE_TIMEZONE_ID is not in config list
+    Assert.assertFalse(
+        configs.stream()
+        .filter(config -> config.getName().equals(TABLE_TIMEZONE_ID))
+        .findAny()
+        .isPresent()
+    );
+
+    UpgraderTestUtils.assertNoneExist(configs, queryIntervalField);
+    UpgraderTestUtils.assertExists(configs, "commonSourceConfigBean.queriesPerSecond", "0.4");
+  }
 }

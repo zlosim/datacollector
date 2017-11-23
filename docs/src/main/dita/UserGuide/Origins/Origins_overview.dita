@@ -27,6 +27,8 @@
     <p>In standalone pipelines, you can use the following origins: <ul id="ul_mxz_jxm_jq">
         <li><xref href="AmazonS3.dita#concept_kvs_3hh_ht">Amazon S3</xref> - Reads objects from
           Amazon S3.</li>
+        <li><xref href="AmazonSQS.dita#concept_xsh_knm_5bb">Amazon SQS Consumer</xref> - Reads data
+          from queues in Amazon Simple Queue Services (SQS). </li>
         <li><xref href="AzureEventHub.dita#concept_c1z_15q_1bb">Azure Event Hub Consumer</xref> -
           Reads data from Microsoft Azure Event Hub. Creates multiple threads to enable parallel
           processing in a multithreaded pipeline.</li>
@@ -34,7 +36,8 @@
           endpoint and processes the contents of all authorized CoAP requests. Creates multiple
           threads to enable parallel processing in a multithreaded pipeline.</li>
         <li><xref href="Directory.dita#concept_qcq_54n_jq">Directory</xref> - Reads fully-written
-          files from a directory. </li>
+          files from a directory. Creates multiple threads to enable parallel processing in a
+          multithreaded pipeline.</li>
         <li><xref href="Elasticsearch.dita#concept_f1q_vpm_2z">Elasticsearch</xref> - Reads data
           from an Elasticsearch cluster. Creates multiple threads to enable parallel processing in a
           multithreaded pipeline.</li>
@@ -42,6 +45,8 @@
           from an active file after reading related archived files in the directory. </li>
         <li><xref href="BigQuery.dita#concept_cg3_y3v_q1b">Google BigQuery</xref> - Executes a query
           job and reads the result from Google BigQuery. </li>
+        <li><xref href="GCS.dita#concept_iyd_wql_nbb">Google Cloud Storage</xref> - Reads fully
+          written objects from Google Cloud Storage.</li>
         <li><xref href="PubSub.dita#concept_pjw_qtl_r1b">Google Pub/Sub Subscriber</xref> - Consumes
           messages from a Google Pub/Sub subscription. Creates multiple threads to enable parallel
           processing in a multithreaded pipeline.</li>
@@ -67,10 +72,16 @@
         <li><xref href="KinConsumer.dita#concept_anh_4y3_yr">Kinesis Consumer</xref> - Reads data
           from Kinesis Streams. Creates multiple threads to enable parallel processing in a
           multithreaded pipeline.</li>
+        <li><xref href="MapRdbCDC.dita#concept_qwj_5vm_pbb">MapR DB CDC</xref> - Reads  changed MapR
+          DB data that has been written to MapR Streams. Creates multiple threads to enable parallel
+          processing in a multithreaded pipeline.</li>
         <li><xref href="MapRDBJSON.dita#concept_ywh_k15_3y"/> - Reads JSON documents from MapR DB
           JSON tables.</li>
         <li><xref href="MapRFS.dita#concept_psz_db4_lx">MapR FS</xref> - Reads files from MapR
           FS.</li>
+        <li><xref href="MapRStreamsMultiConsumer.dita#concept_hvd_hww_lbb">MapR Multitopic Streams
+            Consumer</xref> - Reads messages from multiple MapR Streams topics. Creates multiple
+          threads to enable parallel processing in a multithreaded pipeline.</li>
         <li><xref href="MapRStreamsCons.dita#concept_cvy_xsf_2v">MapR Streams Consumer</xref> -
           Reads messages from MapR Streams.</li>
         <li><xref href="MongoDB.dita#concept_bk4_2rs_ns">MongoDB</xref> - Reads documents from
@@ -109,6 +120,9 @@
         <li><xref href="TCPServer.dita#concept_ppm_xb1_4z">TCP Server</xref> - Listens at the
           specified ports and processes incoming data over TCP/IP connections. Creates multiple
           threads to enable parallel processing in a multithreaded pipeline.</li>
+        <li><xref href="UDPMulti.dita#concept_wng_g5f_5bb">UDP Multithreaded Source</xref> - Reads
+          messages from one or more UDP ports. Creates multiple threads to enable parallel
+          processing in a multithreaded pipeline. </li>
         <li><xref href="UDP.dita#concept_rst_2y5_1s">UDP Source</xref> - Reads messages from one or
           more UDP ports. </li>
         <li><xref href="UDPtoKafka.dita#concept_jzq_jcz_pw">UDP to Kafka</xref> - Reads messages
@@ -130,6 +144,18 @@
           FS.</li>
         <li><xref href="MapRStreamsCons.dita#concept_cvy_xsf_2v">MapR Streams Consumer</xref> -
           Reads messages from MapR Streams.</li>
+      </ul></p>
+    <p>In edge pipelines, you can use the following origins:<ul id="ul_r4p_zs2_rbb">
+        <li><xref href="Directory.dita#concept_qcq_54n_jq">Directory</xref> - Reads fully-written
+          files from a directory.</li>
+        <li><xref href="FileTail.dita#concept_n1y_qyp_5q">File Tail</xref> - Reads lines of data
+          from an active file after reading related archived files in the directory. </li>
+        <li><xref href="HTTPServer.dita#concept_s2p_5hb_4y">HTTP Server</xref> - Listens on an HTTP
+          endpoint and processes the contents of all authorized HTTP POST requests.</li>
+        <li><xref href="MQTTSubscriber.dita#concept_ukz_3vt_lz">MQTT Subscriber</xref> - Subscribes
+          to a topic on an MQTT broker to read messages from the broker.</li>
+        <li><xref href="WindowsLog.dita#concept_agf_5jv_sbb">Windows Event Log</xref> - Reads data
+          from a Microsoft Windows event log located on a Windows machine. </li>
       </ul></p>
     <p>To help create or test pipelines, you can use the following development origins:<ul
         id="ul_nr2_c1p_qv">

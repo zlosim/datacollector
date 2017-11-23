@@ -15,10 +15,17 @@
  */
 package com.streamsets.pipeline.kafka.api;
 
+import com.google.common.collect.ImmutableSet;
 import com.streamsets.pipeline.api.impl.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ServiceLoader;
+import java.util.Set;
 
 public abstract class FactoriesBean {
+
+  private static final Logger LOG = LoggerFactory.getLogger(FactoriesBean.class);
 
   public abstract SdcKafkaProducerFactory createSdcKafkaProducerFactory();
 
@@ -32,23 +39,30 @@ public abstract class FactoriesBean {
 
   private static FactoriesBean factoriesBean;
 
-  private final static String kafka10ClassName = "com.streamsets.pipeline.kafka.impl.Kafka10FactoriesBean";
+  private final static Set<String> subclassNames = ImmutableSet.of(
+    "com.streamsets.pipeline.kafka.impl.Kafka10FactoriesBean",
+    "com.streamsets.pipeline.kafka.impl.Kafka11FactoriesBean",
+    "com.streamsets.pipeline.kafka.impl.Kafka1_0FactoriesBean"
+  );
 
   static {
     int serviceCount = 0;
-    FactoriesBean kafka10FactoriesBean = null;
+    FactoriesBean subclassBean = null;
     for (FactoriesBean bean : factoriesBeanLoader) {
+      LOG.info("Found FactoriesBean loader {}", bean.getClass().getName());
       factoriesBean = bean;
       serviceCount++;
-      // Exception for Kafak10 since Kafka10 depends on Kafak09, it should load 2 service loaders
-      if(bean.getClass().getName().toString().equals(kafka10ClassName)) {
-        kafka10FactoriesBean = bean;
+
+      if(subclassNames.contains(bean.getClass().getName())) {
+        if(subclassBean != null) {
+          throw new RuntimeException(Utils.format("More then one subclass beans found: {}, {}", subclassBean, bean.getClass().getName()));
+        }
+        subclassBean = bean;
       }
     }
 
-    // Exception for Kafka10 since it should load 2 service loaders
-    if(kafka10FactoriesBean != null) {
-      factoriesBean = kafka10FactoriesBean;
+    if(subclassBean != null) {
+      factoriesBean = subclassBean;
       serviceCount--;
     }
 

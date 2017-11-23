@@ -20,6 +20,8 @@ import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.StageUpgrader;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.config.upgrade.UpgraderUtils;
+import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,12 +29,14 @@ import java.util.List;
 import java.util.Map;
 
 public class SQLServerCDCSourceUpgrader implements StageUpgrader {
-  private static final String TABLECONFIG = "cdcTableJdbcConfigBean.tableConfigs";
+  public static final String TABLECONFIG = "cdcTableJdbcConfigBean.tableConfigs";
+  public static final String ALLOW_LATE_TABLE = "commonSourceConfigBean.allowLateTable";
   private static final String SCHEMA_CONFIG = "schema";
   private static final String TABLEPATTERN_CONFIG = "tablePattern";
   private static final String TABLE_EXCLUSION_CONFIG = "tableExclusionPattern";
   private static final String TABLE_INITIALOFFSET_CONFIG = "initialOffset";
   private static final String TABLE_CAPTURE_INSTANCE_CONFIG = "capture_instance";
+  private static final String TABLE_TIMEZONE_ID = "cdcTableJdbcConfigBean.timeZoneID";
 
   @Override
   public List<Config> upgrade(
@@ -41,6 +45,12 @@ public class SQLServerCDCSourceUpgrader implements StageUpgrader {
     switch (fromVersion) {
       case 1:
         upgradeV1ToV2(configs);
+        if (toVersion == 2) {
+          break;
+        }
+        // fall through
+      case 2:
+        upgradeV2ToV3(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
@@ -51,6 +61,9 @@ public class SQLServerCDCSourceUpgrader implements StageUpgrader {
   private static void upgradeV1ToV2(List<Config> configs) {
     Config removeConfig = null;
     Config addConfig = null;
+
+    configs.add(new Config(ALLOW_LATE_TABLE, false));
+
     for (Config config : configs) {
       if (TABLECONFIG.equals(config.getName())) {
         List<Map<String, String>> tableConfig = (List<Map<String, String>>) config.getValue();
@@ -82,6 +95,7 @@ public class SQLServerCDCSourceUpgrader implements StageUpgrader {
         }
         removeConfig = config;
         addConfig = new Config(TABLECONFIG, newconfig);
+
         break;
       }
     }
@@ -90,5 +104,28 @@ public class SQLServerCDCSourceUpgrader implements StageUpgrader {
       configs.add(addConfig);
       configs.remove(removeConfig);
     }
+  }
+
+  private static void upgradeV2ToV3(List<Config> configs) {
+    for (Config config : configs) {
+      if (TABLE_TIMEZONE_ID.equals(config.getName())) {
+        configs.remove(config);
+        break;
+      }
+    }
+
+    // upgrade queryInterval to queriesPerSecond
+    final String numThreadsField = "cdcTableJdbcConfigBean.numberOfThreads";
+    final Config numThreadsConfig = UpgraderUtils.getConfigWithName(configs, numThreadsField);
+    if (numThreadsConfig == null) {
+      throw new IllegalStateException(String.format(
+          "%s config was not found in configs: %s",
+          numThreadsField,
+          configs
+      ));
+    }
+    final int numThreads = (int) numThreadsConfig.getValue();
+
+    CommonSourceConfigBean.upgradeRateLimitConfigs(configs, "commonSourceConfigBean", numThreads);
   }
 }

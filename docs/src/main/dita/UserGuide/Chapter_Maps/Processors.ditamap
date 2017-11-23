@@ -35,6 +35,10 @@
    <topicref href="../Processors/DataParser-DataFormats.dita"/>
    <topicref href="../Processors/DataParser-Configuring.dita"/>
   </topicref>
+  <topicref href="../Processors/Delay.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Processors/Delay-Configuring.dita"/>
+  </topicref>
   <topicref href="../Processors/Expression.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Processors/Expression-OutputField.dita"/>
@@ -196,7 +200,7 @@
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Processors/JDBCLookup-DriverInstall.dita"/>
    <topicref href="../Processors/JDBCLookup-Cache.dita"/>
-   <topicref href="../Processors/JDBCLookup-Monitoring.dita"/>
+   <topicref href="../Processors/JDBCLookup-Monitoring.dita" product="SDC"/>
    <topicref href="../Processors/JDBCLookup-Configuring.dita"/>
   </topicref>
   <topicref href="../Processors/JDBCTee.dita" chunk="to-content">
@@ -264,6 +268,7 @@
    <topicmeta>
     <shortdesc/>
    </topicmeta>
+   <topicref href="../Processors/SalesforceLookup-Mode.dita"/>
    <topicref href="../Processors/SalesforceLookup-Cache.dita"/>
    <topicref href="../Processors/SalesforceLookup-Attributes.dita"/>
    <topicref href="../Processors/SalesforceLookup-APIVersion.dita"/>

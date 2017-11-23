@@ -370,7 +370,7 @@ angular
       exportSelectedPipelines: function(includeDefinitions) {
         var selectedPipelineList = $scope.selectedPipelineList;
         if (includeDefinitions) {
-          // Export for DPM supports only for valid pipelines
+          // Export for SCH supports only for valid pipelines
           var validationIssues = [];
           angular.forEach($scope.filteredPipelines, function(pipelineInfo) {
             if (selectedPipelineList.indexOf(pipelineInfo.pipelineId) !== -1 && !pipelineInfo.valid) {
@@ -744,7 +744,7 @@ angular
       },
 
       /**
-       * Returns true if pipeline is DPM controlled system pipeline
+       * Returns true if pipeline is SCH controlled system pipeline
        * @param pipelineInfo
        */
       isSystemPipeline: function(pipelineInfo) {
@@ -757,7 +757,7 @@ angular
       },
 
       /**
-       * Returns true if pipeline is DPM controlled pipeline
+       * Returns true if pipeline is SCH controlled pipeline
        * @param pipelineInfo
        */
       isDpmControlledPipeline: function(pipelineInfo) {
@@ -766,6 +766,18 @@ angular
           pipelineStatus && pipelineStatus.pipelineId === pipelineInfo.pipelineId &&
           pipelineInfo.pipelineId.indexOf('System Pipeline for Job') !== 0 &&
           pipelineStatus.attributes && pipelineStatus.attributes.IS_REMOTE_PIPELINE
+        );
+      },
+
+      /**
+       * Returns true if pipeline is Edge pipeline
+       * @param pipelineInfo
+       */
+      isEdgePipeline: function(pipelineInfo) {
+        var pipelineStatus = $rootScope.common.pipelineStatusMap[pipelineInfo.pipelineId];
+        return (
+          pipelineStatus && pipelineStatus.pipelineId === pipelineInfo.pipelineId &&
+         pipelineStatus.executionMode === 'EDGE'
         );
       },
 

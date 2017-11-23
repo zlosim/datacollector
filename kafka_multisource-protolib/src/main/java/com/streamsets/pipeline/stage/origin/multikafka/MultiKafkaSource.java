@@ -82,8 +82,6 @@ public class MultiKafkaSource extends BasePushSource {
         MultiSdcKafkaConsumer<String, byte[]> consumer,
         CountDownLatch startProcessingGate
     ) {
-      Thread.currentThread().setName("kafkaConsumerThread-"+threadID);
-      LOG.trace("Thread {} begin", Thread.currentThread().getName());
       this.consumer = consumer;
       this.threadID = threadID;
       this.topicList = topicList;
@@ -92,12 +90,14 @@ public class MultiKafkaSource extends BasePushSource {
 
     @Override
     public Long call() throws Exception {
-      LOG.trace("Starting poll loop in thread {}", Thread.currentThread().getName());
+      Thread.currentThread().setName("kafkaConsumerThread-"+threadID);
       long messagesProcessed = 0;
 
       //wait until all threads are spun up before processing
+      LOG.debug("Thread {} waiting on other consumer threads to start up", Thread.currentThread().getName());
       startProcessingGate.await();
 
+      LOG.debug("Starting poll loop in thread {}", Thread.currentThread().getName());
       try {
         consumer.subscribe(topicList);
 
@@ -246,7 +246,9 @@ public class MultiKafkaSource extends BasePushSource {
             startProcessingGate
         )));
       } catch (Exception e) {
-        LOG.error("{}", e);
+        LOG.error("Error while initializing Kafka consumer: {}", e.toString(), e);
+        Throwables.propagateIfPossible(e.getCause(), StageException.class);
+        Throwables.propagate(e);
       }
       startProcessingGate.countDown();
     }

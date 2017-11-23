@@ -23,6 +23,8 @@
   <topicref href="../Origins/Origins_overview.dita" chunk="to-content">
     <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/Origins-HTTPComparison.dita"/>
+   <topicref href="../Origins/Origins-MapRComparison.dita"/>
+   <topicref href="../Origins/Origins-UDP.dita"/>
    <topicref href="../Origins/Origins-WebSocketComparison.dita"/>
    <topicref href="../Origins/BatchSizeWaitTime.dita"/>
    <topicref href="../Origins/MaxRecordSize.dita"/>
@@ -44,6 +46,17 @@
    <topicref href="../Origins/AmazonS3-DataFormat.dita"/>
    <topicref href="../Origins/AmazonS3-Configuring.dita"/>
   </topicref>
+  <topicref href="../Origins/AmazonSQS.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/AmazonSQS-AWSCredentials.dita"/>
+   <topicref href="../Origins/AmazonSQS-QueueNamePrefix.dita"/>
+   <topicref href="../Origins/AmazonSQS-MultithreadProcessing.dita"/>
+   <topicref href="../Origins/AmazonSQS-MessageAttributes.dita">
+    <topicref href="../Origins/AmazonSQS-SenderAtts.dita"/>
+   </topicref>
+   <topicref href="../Origins/AmazonSQS-DataFormats.dita"/>
+   <topicref href="../Origins/AmazonSQS-Configuring.dita"/>
+  </topicref>
   <topicref href="../Origins/AzureEventHub.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/AzureEventHub-StorageAccount.dita"/>
@@ -64,6 +77,7 @@
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/Directory-FileNamePattern-Mode.dita"/>
    <topicref href="../Origins/Directory-ReadOrder.dita"/>
+   <topicref href="../Origins/Directory-MultithreadProcessing.dita"/>
    <topicref href="../Origins/Directory-Subdirectories.dita">
     <topicref href="../Origins/Directory-SubdirArchiving.dita"/>
    </topicref>
@@ -120,6 +134,19 @@
     <topicref href="../Origins/BigQuery-EventRecord.dita"/>
    </topicref>
    <topicref href="../Origins/BigQuery-Configuring.dita"/>
+  </topicref>
+  <topicref href="../Origins/GCS.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/GCS-Credentials.dita">
+    <topicref href="../Origins/GCS-CredentialsDefault.dita"/>
+    <topicref href="../Origins/GCS-CredentialsFile.dita"/>
+   </topicref>
+   <topicref href="../Origins/GCS-CommonPrefixPatterns.dita"/>
+   <topicref href="../Origins/GCS-EventGeneration.dita">
+    <topicref href="../Origins/GCS-EventRecords.dita"/>
+   </topicref>
+   <topicref href="../Origins/GCS-DataFormats.dita"/>
+   <topicref href="../Origins/GCS-Configuring.dita"/>
   </topicref>
   <topicref href="../Origins/PubSub.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
@@ -195,9 +222,11 @@
    <topicref href="../Origins/MultiTableJDBCConsumer-Multithread.dita"/>
    <topicref href="../Origins/MultiTableJDBCConsumer-MultithreadTable.dita"/>
    <topicref href="../Origins/MultiTableJDBCConsumer-MultithreadPartition.dita">
-    <topicref href="../Origins/MultiTableJDBCConsumer-PartitionOffsetTypes.dita"/>
+    <topicref href="../Origins/MultiTableJDBCConsumer-PartitionRequirements.dita"/>
     <topicref href="../Origins/MultiTableJDBCConsumer-MultiOffsetHandling.dita"/>
+    <topicref href="../Origins/MultiTableJDBCConsumer-BestEffort.dita"/>
    </topicref>
+   <topicref href="../Origins/MultitableJDBCConsumer-NonIncremental.dita"/>
    <topicref href="../Origins/MultiTableJDBCConsumer-BatchStrategy.dita">
     <topicref href="../Origins/MultiTableJDBCConsumer-BStrategy-AllRows.dita"/>
     <topicref href="../Origins/MultiTableJDBCConsumer-BStrategy-SwitchTables.dita"/>
@@ -287,6 +316,14 @@
    <topicref href="../Origins/KinConsumer-ResetOrigin.dita"/>
    <topicref href="../Origins/KinConsumer-DataFormats.dita"/>
    <topicref href="../Origins/KinConsumer-Configuring.dita"/></topicref>
+  <topicref href="../Origins/MapRdbCDC.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/MapRdbCDC-Multithreaded.dita"/>
+   <topicref href="../Origins/MapRdbCDC-IDField.dita"/>
+   <topicref href="../Origins/MapRdbCDC-CRUDcdcHeaderAtts.dita"/>
+   <topicref href="../Origins/MapRdbCDC-AdditionalProps.dita"/>
+   <topicref href="../Origins/MapRdbCDC-Configuring.dita"/>
+  </topicref>
   <topicref href="../Origins/MapRDBJSON.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/MapRDBJSON-IDField.dita"/>
@@ -300,13 +337,28 @@
    <topicref href="../Origins/MapRFS-DataFormat-origin.dita"/>
    <topicref href="../Origins/MapRFS-Configuring.dita"/>
   </topicref>
+  <topicref href="../Origins/MapRStreamsMultiConsumer.dita" chunk="to-content">
+   <topicmeta>
+    <shortdesc/>
+   </topicmeta>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-Offsets.dita"/>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-ExistingData.dita"/>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-MultithreadProcessing.dita"/>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-AdditionalProp.dita"/>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-RecordHeaderAtts.dita"/>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-DataFormats.dita">
+    <topicref href="../Origins/LogFormats.dita"/>
+   </topicref>
+   <topicref href="../Origins/MapRStreamsMultiConsumer-Configuring.dita"/>
+  </topicref>
   <topicref href="../Origins/MapRStreamsCons.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
-   <topicref href="../Origins/MapRStreamsCons-AddProps.dita"/>
+   <topicref href="../Origins/MapRStreamsCons-AllData.dita"/>
    <topicref href="../Origins/MapRStreamsCons-DataFormats.dita">
     <topicref href="../Origins/LogFormats.dita"/>
    </topicref>
-   <topicref href="../Origins/MapRStreamsCons-AllData.dita"/>
+   <topicref href="../Origins/MapRStreamsCons-AddProps.dita"/>
+   <topicref href="../Origins/MapRStreamsCons-RecordHeaderAtts.dita"/>
    <topicref href="../Origins/MapRStreamsCons-Configuring.dita"/>
   </topicref>
   <topicref href="../Origins/MongoDB.dita" chunk="to-content">
@@ -455,10 +507,13 @@
     <shortdesc/>
    </topicmeta>
    <topicref href="../Origins/SQLServerCDC-DriverInstall.dita"/>
+   <topicref href="../Origins/SQLServerCDC-SupportedOps.dita"/>
    <topicref href="../Origins/SQLServerCDC-Multithread.dita"/>
    <topicref href="../Origins/SQLServerCDC-BatchStrategy.dita"/>
    <topicref href="../Origins/SQLServerCDC-TableConfig.dita"/>
    <topicref href="../Origins/SQLServerCDC-TableOrder.dita"/>
+   <topicref href="../Origins/SQLServerCDC-LateTables.dita"/>
+   <topicref href="../Origins/SQLServerCDC-SchemaChanges.dita"/>
    <topicref href="../Origins/SQLServerCDC-GeneratedRecord.dita">
     <topicref href="../Origins/SQLServerCDC-RecordHeaderAtts.dita"/>
     <topicref href="../Origins/SQLServerCDC-CDCOpHeaderAtt.dita"/>
@@ -498,9 +553,19 @@
    <topicref href="../Origins/TCPServer-DataFormats.dita"/>
    <topicref href="../Origins/TCPServer-Configuring.dita"/>
   </topicref>
+  <topicref href="../Origins/UDPMulti.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/UDPMulti-RawData.dita"/>
+   <topicref href="../Origins/UDPMulti-ReceiverWorkerThreads.dita"/>
+   <topicref href="../Origins/UDPMulti-PacketQueue.dita"/>
+   <topicref href="../Origins/UDPMulti-Multithreaded.dita"/>
+   <topicref href="../Origins/UDPMulti-MetricsandTuning.dita"/>
+   <topicref href="../Origins/UDPMulti-Configuring.dita"/>
+  </topicref>
   <topicref href="../Origins/UDP.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/UDP-RawData.dita"/>
+   <topicref href="../Origins/UDP-ReceiverThreads.dita"/>
    <topicref href="../Origins/UDP-Configuring.dita"/>
   </topicref>
   <topicref href="../Origins/UDPtoKafka.dita" chunk="to-content">
@@ -529,6 +594,10 @@
    <topicref href="../Origins/WebSocketServer-MultithreadProcessing.dita"/>
    <topicref href="../Origins/WebSocketServer-DataFormat.dita"/>
    <topicref href="../Origins/WebSocketServer-Configuring.dita"/>
+  </topicref>
+  <topicref href="../Origins/WindowsLog.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/WindowsLog-Configuring.dita"/>
   </topicref>
  </topicref>
 </map>

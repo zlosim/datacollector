@@ -21,6 +21,7 @@ import com.streamsets.pipeline.api.Label;
 @GenerateResourceBundle
 public enum Groups implements Label {
   FORCE("Salesforce"),
+  LOOKUP("Lookup"),
   ADVANCED("Advanced"),
   ;
 

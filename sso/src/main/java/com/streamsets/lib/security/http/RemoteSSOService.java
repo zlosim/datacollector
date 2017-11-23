@@ -37,6 +37,8 @@ public class RemoteSSOService extends AbstractSSOService {
   public static final String SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG = CONFIG_PREFIX + "appAuthToken";
   public static final String SECURITY_SERVICE_COMPONENT_ID_CONFIG = CONFIG_PREFIX + "componentId";
   public static final String SECURITY_SERVICE_CONNECTION_TIMEOUT_CONFIG = CONFIG_PREFIX + "connectionTimeout.millis";
+  public static final String DPM_DEPLOYMENT_ID = "dpm.remote.deployment.id";
+
   public static final int DEFAULT_SECURITY_SERVICE_CONNECTION_TIMEOUT = 10000;
   public static final String DPM_ENABLED = CONFIG_PREFIX + "enabled";
   public static final boolean DPM_ENABLED_DEFAULT = false;
@@ -126,7 +128,10 @@ public class RemoteSSOService extends AbstractSSOService {
     boolean active;
     try {
       URL url = new URL(getLoginPageUrl());
-      int status = ((HttpURLConnection)url.openConnection()).getResponseCode();
+      HttpURLConnection httpURLConnection = ((HttpURLConnection)url.openConnection());
+      httpURLConnection.setConnectTimeout(connTimeout);
+      httpURLConnection.setReadTimeout(connTimeout);
+      int status = httpURLConnection.getResponseCode();
       active = status == HttpURLConnection.HTTP_OK;
       if (!active) {
         LOG.warn("DPM reachable but returning '{}' HTTP status on login", status);
@@ -260,8 +265,7 @@ public class RemoteSSOService extends AbstractSSOService {
     } catch (IOException ex){
       LOG.warn("Could not do user token validation, going inactive: {}", ex.toString());
       serviceActive = false;
-      Map error = ImmutableMap.of("message", "Could not connect to security service: " + ex.toString());
-      throw new ForbiddenException(error);
+      throw new RuntimeException(Utils.format("Could not connect to security service: {}", ex), ex);
     }
     if (principal != null) {
       principal.setTokenStr(userAuthToken);
@@ -297,8 +301,7 @@ public class RemoteSSOService extends AbstractSSOService {
     } catch (IOException ex){
       LOG.warn("Could not do app token validation, going inactive: {}", ex.toString());
       serviceActive = false;
-      Map error = ImmutableMap.of("message", "Could not connect to seucirty service: " + ex.toString());
-      throw new ForbiddenException(error);
+      throw new RuntimeException(Utils.format("Could not connect to security service: {}", ex), ex);
     }
     if (principal != null) {
       principal.setTokenStr(authToken);

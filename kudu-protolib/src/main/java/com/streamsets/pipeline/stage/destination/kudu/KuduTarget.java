@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.destination.kudu;
 
-import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
@@ -38,10 +37,15 @@ import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.lib.cache.CacheCleaner;
 import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.operation.OperationType;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
+import com.streamsets.pipeline.lib.operation.FieldPathConverter;
+import com.streamsets.pipeline.lib.operation.MongoDBOpLogFieldConverter;
+import com.streamsets.pipeline.lib.operation.MySQLBinLogFieldConverter;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.lib.kudu.Errors;
 import com.streamsets.pipeline.stage.lib.kudu.KuduFieldMappingConfig;
+import org.apache.commons.lang.StringUtils;
 import org.apache.kudu.ColumnSchema;
 import org.apache.kudu.Schema;
 import org.apache.kudu.Type;
@@ -98,7 +102,9 @@ public class KuduTarget extends BaseTarget {
   private final int tableCacheSize = 500;
 
   private final LoadingCache<String, KuduTable> kuduTables;
+  private final LoadingCache<KuduTable, KuduRecordConverter> recordConverters;
   private final CacheCleaner cacheCleaner;
+  private final CacheCleaner recordBuilderCacheCleaner;
 
   private ErrorRecordHandler errorRecordHandler;
   private ELVars tableNameVars;
@@ -107,7 +113,6 @@ public class KuduTarget extends BaseTarget {
   private KuduSession kuduSession;
 
   private KuduOperationType defaultOperation;
-
   private Set<String> accessedTables;
 
   public KuduTarget(KuduConfigBean configBean) {
@@ -135,6 +140,14 @@ public class KuduTarget extends BaseTarget {
         });
 
     cacheCleaner = new CacheCleaner(kuduTables, "KuduTarget", 10 * 60 * 1000);
+
+    recordConverters = cacheBuilder.build(new CacheLoader<KuduTable, KuduRecordConverter>() {
+      @Override
+      public KuduRecordConverter load(KuduTable table) throws KuduException {
+        return createKuduRecordConverter(table);
+      }
+    });
+    recordBuilderCacheCleaner = new CacheCleaner(recordConverters, "KuduTarget KuduRecordConverter", 10 * 60 * 1000);
   }
 
   @Override
@@ -256,11 +269,11 @@ public class KuduTarget extends BaseTarget {
     return session;
   }
 
-  private Optional<KuduRecordConverter> createKuduRecordConverter(KuduTable table) {
+  private KuduRecordConverter createKuduRecordConverter(KuduTable table) {
     return createKuduRecordConverter(null, table);
   }
 
-  private Optional<KuduRecordConverter> createKuduRecordConverter(List<ConfigIssue> issues, KuduTable table) {
+  private KuduRecordConverter createKuduRecordConverter(List<ConfigIssue> issues, KuduTable table) {
     Map<String, Field.Type> columnsToFieldTypes = new HashMap<>();
     Map<String, String> fieldsToColumns = new HashMap<>();
     Schema schema = table.getSchema();
@@ -293,7 +306,13 @@ public class KuduTarget extends BaseTarget {
         fieldsToColumns.put(fieldMappingConfig.field, fieldMappingConfig.columnName);
       }
     }
-    return Optional.of(new KuduRecordConverter(columnsToFieldTypes, fieldsToColumns, schema));
+    FieldPathConverter converter = null;
+    if (configBean.changeLogFormat == ChangeLogFormat.MongoDBOpLog) {
+      converter = new MongoDBOpLogFieldConverter();
+    } else if (configBean.changeLogFormat == ChangeLogFormat.MySQLBinLog){
+      converter = new MySQLBinLogFieldConverter();
+    }
+    return new KuduRecordConverter(columnsToFieldTypes, fieldsToColumns, schema, converter);
   }
 
   @Override
@@ -302,6 +321,7 @@ public class KuduTarget extends BaseTarget {
       if (!batch.getRecords().hasNext()) {
         // No records - take the opportunity to clean up the cache so that we don't hold on to memory indefinitely
         cacheCleaner.periodicCleanUp();
+        recordBuilderCacheCleaner.periodicCleanUp();
       }
 
       writeBatch(batch);
@@ -335,17 +355,21 @@ public class KuduTarget extends BaseTarget {
     for (String tableName : partitions.keySet()) {
 
       // Send one LineageEvent per table that is accessed.
-      if(!accessedTables.contains(tableName)) {
-        accessedTables.add(tableName);
-        sendLineageEvent(tableName);
+      if(!StringUtils.isEmpty(tableName)) {
+        if (!accessedTables.contains(tableName)) {
+          accessedTables.add(tableName);
+          sendLineageEvent(tableName);
+        }
       }
 
       Map<String, Record> keyToRecordMap = new HashMap<>();
       Iterator<Record> it = partitions.get(tableName).iterator();
 
       KuduTable table;
+      KuduRecordConverter recordConverter;
       try {
         table = kuduTables.get(tableName);
+        recordConverter = recordConverters.get(table);
       } catch (ExecutionException ex) {
         // if table doesn't exist, send records to the error handler and continue
         while (it.hasNext()) {
@@ -353,12 +377,6 @@ public class KuduTarget extends BaseTarget {
         }
         continue;
       }
-
-      Optional<KuduRecordConverter> kuduRecordConverter = createKuduRecordConverter(table);
-      if (!kuduRecordConverter.isPresent()) {
-        throw new StageException(Errors.KUDU_11);
-      }
-      KuduRecordConverter recordConverter = kuduRecordConverter.get();
 
       while (it.hasNext()) {
         Record record = null;

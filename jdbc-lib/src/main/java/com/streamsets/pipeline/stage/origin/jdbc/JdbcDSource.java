@@ -20,17 +20,19 @@ import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
+import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.configurablestage.DSource;
 import com.streamsets.pipeline.lib.el.OffsetEL;
+import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.UnknownTypeAction;
 import com.streamsets.pipeline.lib.jdbc.UnknownTypeActionChooserValues;
 
 @StageDef(
-    version = 9,
+    version = 10,
     label = "JDBC Query Consumer",
     description = "Reads data from a JDBC source using a query.",
     icon = "rdbms.png",
@@ -43,6 +45,11 @@ import com.streamsets.pipeline.lib.jdbc.UnknownTypeActionChooserValues;
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
+@HideConfigs({
+    "commonSourceConfigBean.allowLateTable",
+    "commonSourceConfigBean.enableSchemaChanges",
+    "commonSourceConfigBean.queriesPerSecond"
+})
 public class JdbcDSource extends DSource {
 
   @ConfigDef(
@@ -102,6 +109,18 @@ public class JdbcDSource extends DSource {
   )
   @ValueChooserModel(JdbcRecordTypeChooserValues.class)
   public JdbcRecordType jdbcRecordType;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "${10 * SECONDS}",
+      label = "Query Interval",
+      displayPosition = 140,
+      elDefs = {TimeEL.class},
+      evaluation = ConfigDef.Evaluation.IMPLICIT,
+      group = "JDBC"
+  )
+  public long queryInterval;
 
   @ConfigDefBean
   public CommonSourceConfigBean commonSourceConfigBean;
@@ -193,7 +212,8 @@ public class JdbcDSource extends DSource {
         createJDBCNsHeaders,
         jdbcNsHeaderPrefix,
         hikariConfigBean,
-        unknownTypeAction
+        unknownTypeAction,
+        queryInterval
       );
   }
 }

@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector</artifactId>
-    <version>3.0.0.0-SNAPSHOT</version>
+    <version>3.1.0.0-SNAPSHOT</version>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-root-proto</artifactId>
-  <version>3.0.0.0-SNAPSHOT</version>
+  <version>3.1.0.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Root Prototype POM</description>
   <name>StreamSets Data Collector Root Prototype POM</name>
   <packaging>pom</packaging>
@@ -67,8 +67,8 @@
     <jersey.version>2.25.1</jersey.version>
     <!-- Sets the VM argument line used when unit and integration tests are run. -->
     <argLine>-Xmx2g</argLine>
-    <testcontainers.version>1.4.1</testcontainers.version>
-    <netty.version>4.0.41.Final</netty.version>
+    <testcontainers.version>1.4.3</testcontainers.version>
+    <netty.version>4.1.16.Final</netty.version>
 
     <!-- Platform encoding override -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -203,6 +203,41 @@
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
         <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-common</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-transport</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-buffer</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-handler</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-socks</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-http</artifactId>
+        <version>${netty.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -438,7 +473,7 @@
         <plugin>
           <groupId>com.streamsets</groupId>
           <artifactId>streamsets-datacollector-rbgen-maven-plugin</artifactId>
-          <version>3.0.0.0-SNAPSHOT</version>
+          <version>3.1.0.0-SNAPSHOT</version>
         </plugin>
 
       </plugins>

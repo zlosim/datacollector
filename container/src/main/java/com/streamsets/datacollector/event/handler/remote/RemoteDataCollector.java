@@ -38,6 +38,7 @@ import com.streamsets.datacollector.restapi.bean.SourceOffsetJson;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.security.GroupsInScope;
+import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineInfo;
 import com.streamsets.datacollector.store.PipelineStoreTask;
@@ -45,6 +46,7 @@ import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.LogUtil;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.validation.Issues;
+import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
 import com.streamsets.lib.security.acl.dto.Acl;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.StageException;
@@ -80,6 +82,7 @@ public class RemoteDataCollector implements DataCollector {
   private final AclStoreTask aclStoreTask;
   private final AclCacheHelper aclCacheHelper;
   private final RuntimeInfo runtimeInfo;
+  private final StageLibraryTask stageLibrary;
 
   @Inject
   public RemoteDataCollector(
@@ -89,7 +92,8 @@ public class RemoteDataCollector implements DataCollector {
       AclStoreTask aclStoreTask,
       RemoteStateEventListener stateEventListener,
       RuntimeInfo runtimeInfo,
-      AclCacheHelper aclCacheHelper
+      AclCacheHelper aclCacheHelper,
+      StageLibraryTask stageLibrary
   ) {
     this.manager = manager;
     this.pipelineStore = pipelineStore;
@@ -99,6 +103,7 @@ public class RemoteDataCollector implements DataCollector {
     this.runtimeInfo = runtimeInfo;
     this.aclStoreTask = aclStoreTask;
     this.aclCacheHelper = aclCacheHelper;
+    this.stageLibrary = stageLibrary;
   }
 
   public void init() {
@@ -183,7 +188,7 @@ public class RemoteDataCollector implements DataCollector {
     }
     UUID uuid;
     if (!pipelineExists) {
-      uuid = pipelineStore.create(user, name, name, description, true).getUuid();
+      uuid = pipelineStore.create(user, name, name, description, true, false).getUuid();
     } else {
       validateIfRemote(name, rev, "SAVE");
       PipelineInfo pipelineInfo = pipelineStore.getInfo(name);
@@ -191,8 +196,10 @@ public class RemoteDataCollector implements DataCollector {
       ruleDefinitions.setUuid(pipelineStore.retrieveRules(name, rev).getUuid());
     }
     pipelineConfiguration.setUuid(uuid);
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(stageLibrary, name, pipelineConfiguration);
+    pipelineConfiguration = validator.validate();
     pipelineStore.save(user, name, rev, description, pipelineConfiguration);
-    pipelineStore.storeRules(name, rev, ruleDefinitions);
+    pipelineStore.storeRules(name, rev, ruleDefinitions, false);
     if (acl != null) { // can be null for old dpm or when DPM jobs have no acl
       aclStoreTask.saveAcl(name, acl);
     }
@@ -210,7 +217,7 @@ public class RemoteDataCollector implements DataCollector {
     // Check for existence of pipeline first
     pipelineStore.getInfo(name);
     ruleDefinitions.setUuid(pipelineStore.retrieveRules(name, rev).getUuid());
-    pipelineStore.storeRules(name, rev, ruleDefinitions);
+    pipelineStore.storeRules(name, rev, ruleDefinitions, false);
   }
 
   @Override
@@ -303,7 +310,7 @@ public class RemoteDataCollector implements DataCollector {
           pipelineState.getMessage(),
           workerInfos,
           isClusterMode,
-          getSourceOffset(offset),
+          getSourceOffset(name, offset),
           null,
           runnerCount
       ));
@@ -457,12 +464,15 @@ public class RemoteDataCollector implements DataCollector {
     return validatorIdList;
   }
 
-  private String getSourceOffset(Map<String, String> offset) {
+  private String getSourceOffset(String pipelineId, Map<String, String> offset) {
     SourceOffset sourceOffset = new SourceOffset(SourceOffset.CURRENT_VERSION, offset);
     try {
       return ObjectMapperFactory.get().writeValueAsString(new SourceOffsetJson(sourceOffset));
     } catch (JsonProcessingException e) {
-      throw new IllegalStateException(Utils.format("Failed to serialize source offset : {}", e.toString(), e));
+      throw new IllegalStateException(Utils.format("Failed to fetch source offset for pipeline: {} due to error: {}",
+          pipelineId,
+          e.toString()
+      ), e);
     }
   }
 

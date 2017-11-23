@@ -117,6 +117,7 @@ public class TestRuntimeInfo {
     props.setProperty(RuntimeInfo.DATA_COLLECTOR_BASE_HTTP_URL, "HTTP");
     props.setProperty(RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG, "AUTH_TOKEN");
     props.setProperty(RemoteSSOService.DPM_ENABLED, "true");
+    props.setProperty(RemoteSSOService.DPM_DEPLOYMENT_ID, "foo");
     Writer writer = new FileWriter(new File(dir, "sdc.properties"));
     props.store(writer, "");
     writer.close();
@@ -126,6 +127,7 @@ public class TestRuntimeInfo {
     Assert.assertEquals("HTTP", info.getBaseHttpUrl());
     Assert.assertEquals("AUTH_TOKEN", info.getAppAuthToken());
     Assert.assertTrue(info.isDPMEnabled());
+    Assert.assertEquals("foo", info.getDeploymentId());
   }
 
   @Test
@@ -154,6 +156,19 @@ public class TestRuntimeInfo {
     Assert.assertEquals("ID", info.getId());
     Assert.assertTrue(info.isClusterSlave());
     Assert.assertTrue(info.isDPMEnabled());
+  }
+
+  @Test
+  public void testTrailingSlashRemovedFromHttpURL() throws Exception {
+    RuntimeInfo runtimeInfo = new StandaloneRuntimeInfo(null, null, null);
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
+    // add a leading forward slash
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630/");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
+    // add two leading forward slash
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630//");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
   }
 
   @Test

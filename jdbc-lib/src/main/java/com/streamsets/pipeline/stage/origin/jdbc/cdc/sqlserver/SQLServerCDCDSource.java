@@ -18,6 +18,7 @@ package com.streamsets.pipeline.stage.origin.jdbc.cdc.sqlserver;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
+import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.configurablestage.DPushSource;
@@ -25,11 +26,12 @@ import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
 
 @StageDef(
-    version = 2,
+    version = 3,
     label = "SQL Server CDC Client",
     description = "Origin that an read change events from an MS SQL Server Database",
     icon = "sql-server-multithreaded.png",
     resetOffset = true,
+    producesEvents = true,
     upgrader = SQLServerCDCSourceUpgrader.class,
     onlineHelpRefUrl = "index.html#Origins/SQLServerCDC.html#task_nsg_fxc_v1b"
 )
