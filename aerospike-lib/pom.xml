@@ -23,18 +23,17 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.0.0.0-SNAPSHOT</version>
+    <version>3.1.0.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-aerospike-lib</artifactId>
-  <version>3.0.0.0-SNAPSHOT</version>
+  <version>3.1.0.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Aerospike 3.15.0.1 Lib</description>
   <name>StreamSets Data Collector Aerospike 3.15.0.1 Lib</name>
-  <packaging>jar</packaging>
 
   <properties>
-    <aerospike-client.version>4.0.8</aerospike-client.version>
+    <aerospike-client.version>4.1.0</aerospike-client.version>
   </properties>
 
   <dependencies>
@@ -84,17 +83,6 @@
     <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-commonlib</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-lookup-protolib</artifactId>
-      <version>3.0.0.0-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.4</version>
       <scope>compile</scope>
     </dependency>
 

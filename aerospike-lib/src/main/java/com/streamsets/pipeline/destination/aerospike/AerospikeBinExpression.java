@@ -15,30 +15,25 @@
  */
 package com.streamsets.pipeline.destination.aerospike;
 
-import com.streamsets.pipeline.api.GenerateResourceBundle;
-import com.streamsets.pipeline.api.Label;
+import com.streamsets.pipeline.api.el.ELEval;
 
-@GenerateResourceBundle
-public enum DataType implements Label {
-  STRING("String", String.class),
-  LONG("Long", Long.class),
-  DOUBLE("Double", Double.class);
+class AerospikeBinExpression {
+  private ELEval binExpression;
+  private ELEval valExpression;
 
-  private String label;
-  private Class className;
-
-  DataType(String label, Class className) {
-    this.label = label;
-    this.className = className;
+  public ELEval getBinExpression() {
+    return binExpression;
   }
 
-  @Override
-  public String getLabel() {
-    return label;
+  public void setBinExpression(ELEval binExpression) {
+    this.binExpression = binExpression;
   }
 
-  public Class getClassName() {
-    return className;
+  public ELEval getValExpression() {
+    return valExpression;
+  }
+
+  public void setValExpression(ELEval valExpression) {
+    this.valExpression = valExpression;
   }
 }
-
