@@ -30,7 +30,6 @@ import java.util.List;
     label = "Aerospike",
     description = "Writes data to Aerospike",
     icon = "aerospike.png",
-    upgrader = AerospikeTargetUpgrader.class,
     onlineHelpRefUrl = ""
 )
 @ConfigGroups(value = Groups.class)
