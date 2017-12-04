@@ -30,10 +30,10 @@
                                     href="../Installation/Installing_the_DC-ServiceRPM.dita#task_th5_1yj_dx"
                                     >RPM packages</xref> - StreamSets now provides the following
                                 Data Collector RPM packages:<ul id="ul_k13_cvk_wbb">
-                                    <li>EL6 - Use to install Data Collector on CentOS 6, Red Hat
-                                        Enterprise Linux 6, or Ubuntu 14.04 LTS.</li>
-                                    <li>EL7 - Use to install Data Collector on CentOS 7, Red Hat
-                                        Enterprise Linux 7, or Ubuntu 16.04 LTS.</li>
+                                    <li>EL6 - Use to install Data Collector on CentOS 6 or Red Hat
+                                        Enterprise Linux 6</li>
+                                    <li>EL7 - Use to install Data Collector on CentOS 7 or Red Hat
+                                        Enterprise Linux 7.</li>
                                 </ul><p>Previously, StreamSets provided a single RPM package used to
                                     install Data Collector on any of these operating
                                 systems.</p></li>
@@ -209,8 +209,10 @@
                     <dt>Processors</dt>
                     <dd>
                         <ul id="ul_qfc_3fl_wbb">
-                            <li>New Aggregator processor - A processor that aggregates data that
-                                arrives within a window of time.</li>
+                            <li><xref href="../Processors/Aggregator.dita#concept_ofb_svm_5bb">New
+                                    Aggregator processor</xref> - A processor that aggregates data
+                                within a window of time. Displays the results in Monitor mode and
+                                can write the results to events. </li>
                             <li><xref href="../Processors/Delay.dita#concept_ez5_pvf_wbb">New Delay
                                     processor</xref> - A processor that can delay processing a batch
                                 of records for a specified amount of time.</li>
@@ -269,8 +271,9 @@
                                 or MongoDB Oplog. </li>
                             <li>MapR DB JSON destination enhancement - The destination now supports
                                 writing to MapR DB based on the <xref
-                                    href="../Destinations/MapRDBJSON-CRUDOperation.dita#concept_ab4_gbb_xbb"
-                                    >CRUD operation in record header attributes</xref>.</li>
+                                    href="../Destinations/MapRDBJSON-Writing.dita#concept_hy5_3nb_xbb"
+                                    >CRUD operation in record header attributes and the Insert API
+                                    and Set API properties</xref>.</li>
                             <li>MongoDB destination enhancements - With this release, the Upsert
                                 operation is no longer supported by the destination. Instead, the
                                 destination includes the following enhancements:<ul
@@ -287,8 +290,8 @@
                                         href="../Upgrade/PostUpgrade-MongoDBdest-Upsert.dita#concept_ncs_5jl_wbb"
                                         >Update MongoDB Destination Upsert Pipelines</xref>.
                                 </p></li>
-                            <li>Redis destination enhancement - The destination now supports writing
-                                data using <xref
+                            <li>Redis destination enhancement - The destination now supports
+                                processing data using <xref
                                     href="../Destinations/Redis-CRUDOperation.dita#concept_dz2_4xh_xbb"
                                     >CRUD operations stored in record header attributes</xref>. </li>
                             <li>Salesforce destination enhancement - When using the Salesforce Bulk
