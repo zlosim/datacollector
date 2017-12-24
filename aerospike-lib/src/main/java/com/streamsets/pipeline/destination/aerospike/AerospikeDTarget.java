@@ -26,7 +26,7 @@ import java.util.List;
 
 
 @StageDef(
-    version = 2,
+    version = 1,
     label = "Aerospike",
     description = "Writes data to Aerospike",
     icon = "aerospike.png",

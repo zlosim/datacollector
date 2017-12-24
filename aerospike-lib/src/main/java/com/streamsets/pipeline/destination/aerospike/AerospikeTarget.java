@@ -46,6 +46,7 @@ public class AerospikeTarget extends RecordTarget {
 
 
   private AerospikeTargetELEvals elEvals = new AerospikeTargetELEvals();
+  private final WritePolicy defaultWritePolicy = new WritePolicy();
   private final AerospikeBeanConfig aerospikeBeanConfig;
   private final String namespaceEL;
   private final String setEL;
@@ -130,7 +131,7 @@ public class AerospikeTarget extends RecordTarget {
     while (retryCount <= aerospikeBeanConfig.maxRetries) {
       try {
         aerospikeBeanConfig.getAerospikeClient().put(
-            new WritePolicy(),
+            defaultWritePolicy,
             k,
             bins.toArray(new Bin[bins.size()])
         );

@@ -32,14 +32,13 @@ public class AerospikeBeanConfig {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "localhost:3000",
+      type = ConfigDef.Type.LIST,
       label = "Aerospike nodes",
-      description = "Comma-separated list of Aerospike nodes. Use format <HOST>:<PORT>",
+      description = "List of Aerospike nodes. Use format <HOST>:<PORT>",
       displayPosition = 10,
       group = "AEROSPIKE"
   )
-  public String connectionString;
+  public List<String> connectionString;
 
   @ConfigDef(
       type = ConfigDef.Type.NUMBER,
@@ -87,7 +86,7 @@ public class AerospikeBeanConfig {
 
   public static List<Host> getAerospikeHosts(
       List<Target.ConfigIssue> issues,
-      String connectionString,
+      List<String> connectionString,
       String configGroupName,
       String configName,
       Target.Context context
@@ -97,8 +96,7 @@ public class AerospikeBeanConfig {
       issues.add(context.createConfigIssue(configGroupName, configName,
           AerospikeErrors.AEROSPIKE_01, configName));
     } else {
-      String[] nodes = connectionString.split(",");
-      for (String node : nodes) {
+      for (String node : connectionString) {
         try {
           HostAndPort hostAndPort = HostAndPort.fromString(node);
           if (!hostAndPort.hasPort() || hostAndPort.getPort() < 0) {

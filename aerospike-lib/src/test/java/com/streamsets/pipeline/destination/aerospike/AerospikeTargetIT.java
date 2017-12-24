@@ -19,6 +19,7 @@ import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.Key;
 import com.aerospike.client.policy.QueryPolicy;
+import com.google.common.collect.Lists;
 import com.streamsets.pipeline.api.*;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.TargetRunner;
@@ -75,7 +76,7 @@ public class AerospikeTargetIT {
     AerospikeDTarget config = new AerospikeDTarget();
     config.aerospikeBeanConfig = new AerospikeBeanConfig();
     config.aerospikeBeanConfig.maxRetries = 5;
-    config.aerospikeBeanConfig.connectionString = aerospikeServer.getContainerIpAddress() + ":" + aerospikeServer.getMappedPort(AEROSPIKE_PORT);
+    config.aerospikeBeanConfig.connectionString = Arrays.asList(aerospikeServer.getContainerIpAddress() + ":" + aerospikeServer.getMappedPort(AEROSPIKE_PORT));
     config.binConfigsEL = new LinkedList<BinConfig>();
     config.binConfigsEL.add(new BinConfig("${record:value('/bName1')}", "${record:value('/bValue1')}", DataType.STRING));
     config.namespaceEL = "${record:value('/namespace')}";
@@ -103,7 +104,7 @@ public class AerospikeTargetIT {
   @Test
   public void testInvalidUri() throws Exception {
     AerospikeDTarget config = getDefaultConfig();
-    config.aerospikeBeanConfig.connectionString = "xxx:abc";
+    config.aerospikeBeanConfig.connectionString = Arrays.asList("xxx:abc");
     Target target = config.createTarget();
     TargetRunner runner = new TargetRunner.Builder(AerospikeDTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR).build();
     List<Target.ConfigIssue> issues = runner.runValidateConfigs();
@@ -113,7 +114,7 @@ public class AerospikeTargetIT {
   @Test
   public void testUnreachableCluster() throws Exception {
     AerospikeDTarget config = getDefaultConfig();
-    config.aerospikeBeanConfig.connectionString = "xxx:123";
+    config.aerospikeBeanConfig.connectionString = Arrays.asList("xxx:123");
     Target target = config.createTarget();
     TargetRunner runner = new TargetRunner.Builder(AerospikeDTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR).build();
     List<Target.ConfigIssue> issues = runner.runValidateConfigs();
