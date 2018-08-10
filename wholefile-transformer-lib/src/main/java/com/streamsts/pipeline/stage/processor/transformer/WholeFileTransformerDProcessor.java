@@ -15,6 +15,7 @@
  */
 package com.streamsts.pipeline.stage.processor.transformer;
 
+import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
@@ -22,20 +23,22 @@ import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 
-@GenerateResourceBundle
 @StageDef(
     version = 1,
     label = "Whole File Transformer",
     description = "Tranform Whole File Data Format into Different Types",
     execution = {ExecutionMode.STANDALONE,},
     icon = "whole_file_transformer.png",
-    onlineHelpRefUrl =""
+    onlineHelpRefUrl ="index.html?contextID=task_jzd_dz4_l2b"
 )
-
+@GenerateResourceBundle
 @ConfigGroups(Groups.class)
 public class WholeFileTransformerDProcessor extends DProcessor {
+  @ConfigDefBean
+  public JobConfig jobConfig;
+
   @Override
   protected Processor createProcessor() {
-    return new WholeFileTransformerProcessor();
+    return new WholeFileTransformerProcessor(jobConfig);
   }
 }

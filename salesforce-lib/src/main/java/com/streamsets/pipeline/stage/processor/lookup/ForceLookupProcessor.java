@@ -20,6 +20,7 @@ import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -85,7 +86,7 @@ public class ForceLookupProcessor extends SingleLaneRecordProcessor {
   private Map<String, String> columnsToDefaults = new HashMap<>();
   Map<String, DataType> columnsToTypes = new HashMap<>();
 
-  private Cache<String, Map<String, Field>> cache;
+  private Cache<String, Optional<List<Map<String, Field>>>> cache;
 
   PartnerConnection partnerConnection;
   private ErrorRecordHandler errorRecordHandler;
@@ -207,11 +208,23 @@ public class ForceLookupProcessor extends SingleLaneRecordProcessor {
       Field idField = record.get(conf.idField);
       String id = (idField != null) ? idField.getValueAsString() : null;
       if (Strings.isNullOrEmpty(id)) {
-        setFieldsInRecord(record, getDefaultFields());
+        switch (conf.missingValuesBehavior) {
+          case SEND_TO_ERROR:
+            LOG.error(Errors.FORCE_35.getMessage());
+            errorRecordHandler.onError(new OnRecordErrorException(record, Errors.FORCE_35));
+            break;
+          case PASS_RECORD_ON:
+            setFieldsInRecord(record, getDefaultFields());
+            break;
+          default:
+            throw new IllegalStateException("Unknown missing value behavior: " + conf.missingValuesBehavior);
+        }
       } else {
-        Map<String, Field> fieldMap = cache.getIfPresent(id);
-        if (fieldMap != null) {
-          setFieldsInRecord(record, fieldMap);
+        Optional<List<Map<String, Field>>> entry = cache.getIfPresent(id);
+
+        if (entry != null && entry.isPresent()) {
+          // Salesforce record id is unique, so we'll always have just one entry in the list
+          setFieldsInRecord(record, entry.get().get(0));
         } else {
           recordsToRetrieve.put(id, record);
         }
@@ -242,7 +255,7 @@ public class ForceLookupProcessor extends SingleLaneRecordProcessor {
             for (Record record : recordsToRetrieve.get(id)) {
               setFieldsInRecord(record, fieldMap);
             }
-            cache.put(id, fieldMap);
+            cache.put(id, Optional.of(ImmutableList.of(fieldMap)));
           }
         } catch (InvalidIdFault e) {
           // exceptionMessage has form "malformed id 0013600001NnbAdOnE"
@@ -390,14 +403,39 @@ public class ForceLookupProcessor extends SingleLaneRecordProcessor {
       String preparedQuery = prepareQuery(queryEval.eval(elVars, conf.soqlQuery, String.class));
       // Need this ugly cast since there isn't a way to do a simple
       // get with the Cache interface
-      Map<String, Field> fieldMap = ((LoadingCache<String, Map<String, Field>>)cache).get(preparedQuery);
-      if (fieldMap.isEmpty()) {
+      Optional<List<Map<String, Field>>> entry = ((LoadingCache<String, Optional<List<Map<String, Field>>>>)cache).get(preparedQuery);
+
+      if (!entry.isPresent()) {
         // No results
-        LOG.error(Errors.FORCE_15.getMessage(), preparedQuery);
-        errorRecordHandler.onError(new OnRecordErrorException(record, Errors.FORCE_15, preparedQuery));
+        switch (conf.missingValuesBehavior) {
+          case SEND_TO_ERROR:
+            LOG.error(Errors.FORCE_15.getMessage(), preparedQuery);
+            errorRecordHandler.onError(new OnRecordErrorException(record, Errors.FORCE_15, preparedQuery));
+            break;
+          case PASS_RECORD_ON:
+            batchMaker.addRecord(record);
+            break;
+          default:
+            throw new IllegalStateException("Unknown missing value behavior: " + conf.missingValuesBehavior);
+        }
+      } else {
+        List<Map<String, Field>> values = entry.get();
+        switch (conf.multipleValuesBehavior) {
+          case FIRST_ONLY:
+            setFieldsInRecord(record, values.get(0));
+            batchMaker.addRecord(record);
+            break;
+          case SPLIT_INTO_MULTIPLE_RECORDS:
+            for (Map<String, Field> lookupItem : values) {
+              Record newRecord = getContext().cloneRecord(record);
+              setFieldsInRecord(newRecord, lookupItem);
+              batchMaker.addRecord(newRecord);
+            }
+            break;
+          default:
+            throw new IllegalStateException("Unknown multiple value behavior: " + conf.multipleValuesBehavior);
+        }
       }
-      setFieldsInRecord(record, fieldMap);
-      batchMaker.addRecord(record);
     } catch (ELEvalException e) {
       LOG.error(Errors.FORCE_16.getMessage(), conf.soqlQuery, e);
       throw new OnRecordErrorException(record, Errors.FORCE_16, conf.soqlQuery);
@@ -433,7 +471,7 @@ public class ForceLookupProcessor extends SingleLaneRecordProcessor {
   }
 
   @SuppressWarnings("unchecked")
-  private Cache<String, Map<String, Field>> buildCache() {
+  private Cache<String, Optional<List<Map<String, Field>>>> buildCache() {
     CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
 
     if (!conf.cacheConfig.enabled) {

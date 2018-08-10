@@ -17,6 +17,7 @@ package com.streamsets.datacollector.runner;
 
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.streamsets.datacollector.config.DetachedStageConfiguration;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.creation.CreationError;
 import com.streamsets.datacollector.creation.PipelineBeanCreator;
@@ -25,6 +26,7 @@ import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.restapi.bean.DetachedStageConfigurationJson;
 import com.streamsets.datacollector.restapi.bean.StageConfigurationJson;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.util.Configuration;
@@ -56,7 +58,7 @@ public abstract class DetachedStage {
   /**
    * Create a new instance of a stage that does not directly live in the pipeline canvas.
    */
-  public DetachedStageRuntime createDetachedStage(
+  public<S> DetachedStageRuntime<? extends S> createDetachedStage(
     String jsonDefinition,
     StageLibraryTask stageLibrary,
     String pipelineId,
@@ -72,13 +74,14 @@ public abstract class DetachedStage {
     Configuration configuration,
     long startTime,
     LineagePublisherDelegator lineagePublisherDelegator,
+    Class<S> klass,
     List<Issue> errors
   ) {
-    StageConfiguration stageConf;
+    DetachedStageConfiguration stageConf;
     try {
       ObjectMapper objectMapper = ObjectMapperFactory.get();
-      StageConfigurationJson stageConfJson = objectMapper.readValue(jsonDefinition, StageConfigurationJson.class);
-      stageConf = stageConfJson.getStageConfiguration();
+      DetachedStageConfigurationJson stageConfJson = objectMapper.readValue(jsonDefinition, DetachedStageConfigurationJson.class);
+      stageConf = stageConfJson.getDetachedStageConfiguration();
     } catch (IOException e) {
       LOG.error(CreationError.CREATION_0900.getMessage(), e.toString(), e);
       errors.add(IssueCreator.getPipeline().create(
@@ -104,6 +107,7 @@ public abstract class DetachedStage {
       configuration,
       startTime,
       lineagePublisherDelegator,
+      klass,
       errors
     );
   }
@@ -111,8 +115,8 @@ public abstract class DetachedStage {
   /**
    * Create a new instance of a stage that does not directly live in the pipeline canvas.
    */
-  public DetachedStageRuntime createDetachedStage(
-    StageConfiguration stageConf,
+  public<S> DetachedStageRuntime<? extends S> createDetachedStage(
+    DetachedStageConfiguration stageConf,
     StageLibraryTask stageLibrary,
     String pipelineId,
     String pipelineTitle,
@@ -127,12 +131,16 @@ public abstract class DetachedStage {
     Configuration configuration,
     long startTime,
     LineagePublisherDelegator lineagePublisherDelegator,
+    Class<S> klass,
     List<Issue> errors
   ) {
     // Firstly validate that the configuration is correct and up to date
     DetachedStageValidator validator = new DetachedStageValidator(stageLibrary, stageConf);
-    stageConf = validator.validate();
-    if(!errors.isEmpty()) {
+    DetachedStageConfiguration detachedStageConfiguration =  validator.validate();
+
+    // If the stage is not valid, we can't create instance of it
+    if(detachedStageConfiguration.getIssues().hasIssues()) {
+      errors.addAll(detachedStageConfiguration.getIssues().getIssues());
       return null;
     }
 
@@ -140,7 +148,8 @@ public abstract class DetachedStage {
     StageBean stageBean = PipelineBeanCreator.get().createStageBean(
       true,
       stageLibrary,
-      stageConf,
+      stageConf.getStageConfiguration(),
+      false,
       false,
       false,
       Collections.emptyMap(),
@@ -198,10 +207,11 @@ public abstract class DetachedStage {
       Collections.emptyMap(),
       startTime,
       lineagePublisherDelegator,
-      Collections.emptyMap()
+      Collections.emptyMap(),
+      false
     );
 
-    return new DetachedStageRuntime(stageBean, stageInfo, context);
+    return DetachedStageRuntime.create(stageBean, stageInfo, context, klass);
   }
 
 }

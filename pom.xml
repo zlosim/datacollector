@@ -19,7 +19,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector</description>
   <name>StreamSets Data Collector</name>
   <packaging>pom</packaging>
@@ -64,6 +64,7 @@
 
     <aerospike-lib>aerospike-lib</aerospike-lib>
     <aws-lib>aws-lib</aws-lib>
+    <azure-keyvault-credentialstore-lib>azure-keyvault-credentialstore-lib</azure-keyvault-credentialstore-lib>
     <basic-lib>basic-lib</basic-lib>
     <bigtable-lib>bigtable-lib</bigtable-lib>
     <cyberark-credentialstore-lib>cyberark-credentialstore-lib</cyberark-credentialstore-lib>
@@ -81,10 +82,13 @@
     <redis-lib>redis-lib</redis-lib>
     <salesforce-lib>salesforce-lib</salesforce-lib>
     <stats-lib>stats-lib</stats-lib>
+    <tensorflow-lib>tensorflow-lib</tensorflow-lib>
     <vault-credentialstore-lib>vault-credentialstore-lib</vault-credentialstore-lib>
     <wholefile-transformer-lib>wholefile-transformer-lib</wholefile-transformer-lib>
     <windows-lib>windows-lib</windows-lib>
     <rootProject>true</rootProject>
+    <datacollector-api.version>3.5.0-SNAPSHOT</datacollector-api.version>
+    <datacollector-spark-api.version>3.5.0-SNAPSHOT</datacollector-spark-api.version>
   </properties>
 
   <!-- StreamSets Data Collector API being used -->
@@ -93,12 +97,12 @@
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-api</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>${datacollector-api.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-spark-api</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>${datacollector-spark-api.version}</version>
       </dependency>
       <dependency>
         <groupId>javax.servlet</groupId>
@@ -174,6 +178,7 @@
     <module>jython-protolib</module>
     <module>groovy-protolib</module>
     <module>kinetica-protolib</module>
+    <module>couchbase-protolib</module>
 
     <module>elasticsearch-protolib</module>
 
@@ -217,6 +222,7 @@
     <module>aerospike-lib</module>
     <module>aws-lib</module>
     <module>azure-lib</module>
+    <module>azure-keyvault-credentialstore-lib</module>
     <module>basic-lib</module>
     <module>bigtable-lib</module>
     <module>cyberark-credentialstore-lib</module>
@@ -234,9 +240,11 @@
     <module>redis-lib</module>
     <module>salesforce-lib</module>
     <module>stats-lib</module>
+    <module>tensorflow-lib</module>
     <module>vault-credentialstore-lib</module>
     <module>wholefile-transformer-lib</module>
     <module>windows-lib</module>
+    <module>pulsar-protolib</module>
   </modules>
 
   <build>
@@ -442,6 +450,7 @@
         <apache-kafka_0_10-lib>apache-kafka_0_10-lib</apache-kafka_0_10-lib>
         <apache-kafka_0_11-lib>apache-kafka_0_11-lib</apache-kafka_0_11-lib>
         <apache-kafka_1_0-lib>apache-kafka_1_0-lib</apache-kafka_1_0-lib>
+        <apache-kafka_1_1-lib>apache-kafka_1_1-lib</apache-kafka_1_1-lib>
         <apache-kudu_1_0-lib>apache-kudu_1_0-lib</apache-kudu_1_0-lib>
         <apache-kudu_1_1-lib>apache-kudu_1_1-lib</apache-kudu_1_1-lib>
         <apache-kudu_1_2-lib>apache-kudu_1_2-lib</apache-kudu_1_2-lib>
@@ -450,6 +459,7 @@
         <apache-kudu_1_5-lib>apache-kudu_1_5-lib</apache-kudu_1_5-lib>
         <apache-kudu_1_6-lib>apache-kudu_1_6-lib</apache-kudu_1_6-lib>
         <apache-kudu_1_7-lib>apache-kudu_1_7-lib</apache-kudu_1_7-lib>
+        <apache-pulsar_2-lib>apache-pulsar_2-lib</apache-pulsar_2-lib>
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
         <cdh_5_2-lib>cdh_5_2-lib</cdh_5_2-lib>
@@ -464,6 +474,7 @@
         <cdh_5_12-lib>cdh_5_12-lib</cdh_5_12-lib>
         <cdh_5_13-lib>cdh_5_13-lib</cdh_5_13-lib>
         <cdh_5_14-lib>cdh_5_14-lib</cdh_5_14-lib>
+        <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
         <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
         <cdh-spark_2_2-lib>cdh-spark_2_2-lib</cdh-spark_2_2-lib>
         <cdh-spark_2_3-lib>cdh-spark_2_3-lib</cdh-spark_2_3-lib>
@@ -473,6 +484,7 @@
         <cdh_kafka_2_0-lib>cdh_kafka_2_0-lib</cdh_kafka_2_0-lib>
         <cdh_kafka_2_1-lib>cdh_kafka_2_1-lib</cdh_kafka_2_1-lib>
         <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
+        <couchbase_5-lib>couchbase_5-lib</couchbase_5-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
@@ -512,6 +524,7 @@
         <module>apache-kafka_0_10-lib</module>
         <module>apache-kafka_0_11-lib</module>
         <module>apache-kafka_1_0-lib</module>
+        <module>apache-kafka_1_1-lib</module>
         <module>apache-kudu_1_0-lib</module>
         <module>apache-kudu_1_1-lib</module>
         <module>apache-kudu_1_2-lib</module>
@@ -520,6 +533,7 @@
         <module>apache-kudu_1_5-lib</module>
         <module>apache-kudu_1_6-lib</module>
         <module>apache-kudu_1_7-lib</module>
+        <module>apache-pulsar_2-lib</module>
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
         <module>cdh_5_2-lib</module>
@@ -534,6 +548,7 @@
         <module>cdh_5_12-lib</module>
         <module>cdh_5_13-lib</module>
         <module>cdh_5_14-lib</module>
+        <module>cdh_5_15-lib</module>
         <module>cdh_6_0-lib</module>
         <module>cdh_kafka_1_2-lib</module>
         <module>cdh_kafka_1_3-lib</module>
@@ -544,6 +559,7 @@
         <module>cdh-spark_2_1-lib</module>
         <module>cdh-spark_2_2-lib</module>
         <module>cdh-spark_2_3-lib</module>
+        <module>couchbase_5-lib</module>
         <module>elasticsearch_5-lib</module>
         <module>emr_hadoop_2_8_3-lib</module>
         <module>groovy_2_4-lib</module>
@@ -588,15 +604,17 @@
              IMPORTANT: define a property matching the module directory name
              for all the sample dev stage libraries here with the directory name as value
         -->
-        <apache-kafka_1_0-lib>apache-kafka_1_0-lib</apache-kafka_1_0-lib>
+        <apache-kafka_1_1-lib>apache-kafka_1_1-lib</apache-kafka_1_1-lib>
         <apache-kudu_1_7-lib>apache-kudu_1_7-lib</apache-kudu_1_7-lib>
+        <apache-pulsar_2-lib>apache-pulsar_2-lib</apache-pulsar_2-lib>
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
         <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
-        <cdh_5_14-lib>cdh_5_14-lib</cdh_5_14-lib>
+        <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
         <cdh_6_0-lib>cdh_6_0-lib</cdh_6_0-lib>
         <cdh_kafka_3_0-lib>cdh_kafka_3_0-lib</cdh_kafka_3_0-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
+        <couchbase_5-lib>couchbase_5-lib</couchbase_5-lib>
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
@@ -620,15 +638,17 @@
 
              IMPORTANT: the modules for the sample dev stage libraries
         -->
-        <module>apache-kafka_1_0-lib</module>
+        <module>apache-kafka_1_1-lib</module>
         <module>apache-kudu_1_7-lib</module>
+        <module>apache-pulsar_2-lib</module>
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
         <module>cdh-spark_2_1-lib</module>
-        <module>cdh_5_14-lib</module>
+        <module>cdh_5_15-lib</module>
         <module>cdh_6_0-lib</module>
         <module>cdh_kafka_3_0-lib</module>
         <module>cdh_spark_2_1_r1-lib</module>
+        <module>couchbase_5-lib</module>
         <module>elasticsearch_5-lib</module>
         <module>emr_hadoop_2_8_3-lib</module>
         <module>groovy_2_4-lib</module>
@@ -806,6 +826,17 @@
       </build>
     </profile>
   </profiles>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>cdh.plugin.repo</id>
+      <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
+      <name>Cloudera Repositories</name>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </pluginRepository>
+  </pluginRepositories>
 
   <repositories>
     <repository>

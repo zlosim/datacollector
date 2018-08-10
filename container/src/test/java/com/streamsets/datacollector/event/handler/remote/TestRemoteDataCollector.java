@@ -451,6 +451,11 @@ public class TestRemoteDataCollector {
     }
 
     @Override
+    public Map<String, Object> createStateAttributes() {
+      return new HashMap<>();
+    }
+
+    @Override
     public void close() {
       // TODO Auto-generated method stub
 
@@ -868,7 +873,9 @@ public class TestRemoteDataCollector {
   public void testValidateConfigs() throws Exception {
     try {
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
@@ -893,7 +900,9 @@ public class TestRemoteDataCollector {
   public void testStopAndDelete() throws Exception {
     try {
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
@@ -935,7 +944,9 @@ public class TestRemoteDataCollector {
       OffsetFileUtil.saveOffsets(runtimeInfo, "ns:name1", "rev1", Collections.singletonMap(Source.POLL_SOURCE_OFFSET_KEY, "offset:101"));
       OffsetFileUtil.saveOffsets(runtimeInfo, "ns:name2", "rev1", Collections.singletonMap(Source.POLL_SOURCE_OFFSET_KEY, "offset:102"));
 
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
@@ -989,7 +1000,9 @@ public class TestRemoteDataCollector {
   public void testAclOnSavePipeline() throws Exception {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         new MockPipelineStoreTask(),
         new MockPipelineStateStore(),
         aclStoreTask,
@@ -1017,7 +1030,9 @@ public class TestRemoteDataCollector {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(MockPipelineStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         pipelineStoreTask,
         new MockPipelineStateStore(),
         aclStoreTask,
@@ -1042,7 +1057,9 @@ public class TestRemoteDataCollector {
   public void testSavePipelineOffset() throws Exception {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         new MockPipelineStoreTask(),
         new MockPipelineStateStore(),
         aclStoreTask,
@@ -1074,7 +1091,9 @@ public class TestRemoteDataCollector {
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
     RemoteStateEventListener remoteStateEventListener = Mockito.mock(RemoteStateEventListener.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(MockPipelineStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         pipelineStoreTask,
         new MockPipelineStateStore(),
         aclStoreTask,
@@ -1134,7 +1153,9 @@ public class TestRemoteDataCollector {
     PipelineStateStore pipelineStateStore = Mockito.mock(PipelineStateStore.class);
     Mockito.when(pipelineStateStore.getState("name", "rev")).thenThrow(new PipelineStoreException(ContainerError
         .CONTAINER_0209));
-    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(manager,
+    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(
+        new Configuration(),
+        manager,
         pipelineStoreTask,
         pipelineStateStore,
         Mockito.mock(AclStoreTask.class),
@@ -1152,7 +1173,9 @@ public class TestRemoteDataCollector {
   public void testRunnerCount() throws Exception {
     Manager manager = Mockito.mock(StandaloneAndClusterPipelineManager.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(PipelineStoreTask.class);
-    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(manager,
+    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(
+        new Configuration(),
+        manager,
         pipelineStoreTask,
         Mockito.mock(PipelineStateStore.class),
         Mockito.mock(AclStoreTask.class),

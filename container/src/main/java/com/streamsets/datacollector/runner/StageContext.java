@@ -86,6 +86,7 @@ public class StageContext extends ProtoContext implements
   private PipelineFinisherDelegate pipelineFinisherDelegate;
   private RuntimeInfo runtimeInfo;
   private final Map services;
+  private final boolean isErrorStage;
 
   //for SDK
   public StageContext(
@@ -165,6 +166,9 @@ public class StageContext extends ProtoContext implements
     this.sharedRunnerMap = new ConcurrentHashMap<>();
     this.runtimeInfo = runtimeInfo;
     this.services = services;
+    this.isErrorStage = false;
+
+    this.sourceResponseSink = new SourceResponseSink();
 
     // sample all records while testing
     this.startTime = System.currentTimeMillis();
@@ -195,7 +199,8 @@ public class StageContext extends ProtoContext implements
       Map<String, Object> sharedRunnerMap,
       long startTime,
       LineagePublisherDelegator lineagePublisherDelegator,
-      Map<Class, ServiceRuntime> services
+      Map<Class, ServiceRuntime> services,
+      boolean isErrorStage
   ) {
     super(
       configuration,
@@ -228,6 +233,7 @@ public class StageContext extends ProtoContext implements
     this.startTime = startTime;
     this.lineagePublisherDelegator = lineagePublisherDelegator;
     this.services = services;
+    this.isErrorStage = isErrorStage;
   }
 
   @Override
@@ -296,11 +302,6 @@ public class StageContext extends ProtoContext implements
   }
 
   @Override
-  public int getRunnerId() {
-    return runnerId;
-  }
-
-  @Override
   public List<Stage.Info> getPipelineInfo() {
     return pipelineInfo;
   }
@@ -330,6 +331,11 @@ public class StageContext extends ProtoContext implements
 
   public void setProcessedSink(ProcessedSink sink) {
     processedSink = sink;
+  }
+
+  // for SDK
+  public SourceResponseSink getSourceResponseSink() {
+    return sourceResponseSink;
   }
 
   public void setSourceResponseSink(SourceResponseSink sourceResponseSink) {
@@ -424,6 +430,11 @@ public class StageContext extends ProtoContext implements
   @Override
   public boolean isStopped() {
     return stop;
+  }
+
+  @Override
+  public boolean isErrorStage() {
+    return isErrorStage;
   }
 
   @Override

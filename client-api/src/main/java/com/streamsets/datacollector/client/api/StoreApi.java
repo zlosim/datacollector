@@ -20,6 +20,7 @@ import com.streamsets.datacollector.client.ApiException;
 import com.streamsets.datacollector.client.Configuration;
 import com.streamsets.datacollector.client.Pair;
 import com.streamsets.datacollector.client.TypeRef;
+import com.streamsets.datacollector.client.model.DetachedStageConfigurationJson;
 import com.streamsets.datacollector.client.model.Order;
 import com.streamsets.datacollector.client.model.PipelineConfigurationJson;
 import com.streamsets.datacollector.client.model.PipelineEnvelopeJson;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 public class StoreApi {
+
+  private static final String DATA_COLLECTOR = "DATA_COLLECTOR";
   private ApiClient apiClient;
 
   public StoreApi() {
@@ -107,18 +110,33 @@ public class StoreApi {
         contentType, authNames, returnType);
   }
 
+  public PipelineConfigurationJson createPipeline (
+      String pipelineId,
+      String description,
+      boolean autoGeneratePipelineId
+  ) throws ApiException {
+    return createPipeline(
+        pipelineId,
+        description,
+        autoGeneratePipelineId,
+        DATA_COLLECTOR
+    );
+  }
+
   /**
    * Add a new Pipeline Configuration to the store
    *
    * @param pipelineId
    * @param description
    * @param autoGeneratePipelineId
+   * @param pipelineType
    * @return PipelineConfigurationJson
    */
   public PipelineConfigurationJson createPipeline (
       String pipelineId,
       String description,
-      boolean autoGeneratePipelineId
+      boolean autoGeneratePipelineId,
+      String pipelineType
   ) throws ApiException {
     Object postBody = null;
     byte[] postBinaryBody = null;
@@ -139,6 +157,7 @@ public class StoreApi {
 
     queryParams.addAll(apiClient.parameterToPairs("", "description", description));
     queryParams.addAll(apiClient.parameterToPairs("", "autoGeneratePipelineId", autoGeneratePipelineId));
+    queryParams.addAll(apiClient.parameterToPairs("", "pipelineType", pipelineType));
 
     final String[] accepts = {
         "application/json"
@@ -207,18 +226,33 @@ public class StoreApi {
         accept, contentType, authNames, returnType);
   }
 
+  public PipelineEnvelopeJson createDraftPipeline (
+      String pipelineId,
+      String description,
+      boolean autoGeneratePipelineId
+  ) throws ApiException {
+    return createDraftPipeline(
+        pipelineId,
+        description,
+        autoGeneratePipelineId,
+        DATA_COLLECTOR
+    );
+  }
+
   /**
    * Add a new Pipeline Configuration to the store
    *
    * @param pipelineId
    * @param description
    * @param autoGeneratePipelineId
+   * @param pipelineType
    * @return PipelineEnvelopeJson
    */
   public PipelineEnvelopeJson createDraftPipeline (
       String pipelineId,
       String description,
-      boolean autoGeneratePipelineId
+      boolean autoGeneratePipelineId,
+      String pipelineType
   ) throws ApiException {
     Object postBody = null;
     byte[] postBinaryBody = null;
@@ -240,6 +274,7 @@ public class StoreApi {
     queryParams.addAll(apiClient.parameterToPairs("", "description", description));
     queryParams.addAll(apiClient.parameterToPairs("", "autoGeneratePipelineId", autoGeneratePipelineId));
     queryParams.addAll(apiClient.parameterToPairs("", "draft", true));
+    queryParams.addAll(apiClient.parameterToPairs("", "pipelineType", pipelineType));
 
     final String[] accepts = {
         "application/json"
@@ -717,6 +752,39 @@ public class StoreApi {
 
     String[] authNames = new String[] { "basic" };
     TypeRef returnType = new TypeRef<List<String>>() {};
+    return apiClient.invokeAPI(path, "POST", queryParams, postBody, postBinaryBody, headerParams, formParams, accept,
+        contentType, authNames, returnType);
+  }
+
+  /**
+   * Validates given detached stage and performs any necessary upgrade.
+   */
+  public DetachedStageConfigurationJson validateDetachedStage(
+    DetachedStageConfigurationJson detachedStageConfigurationJson
+  ) throws ApiException {
+    Object postBody = detachedStageConfigurationJson;
+    byte[] postBinaryBody = null;
+
+    // create path and map variables
+    String path = "/v1/detachedstage";
+
+    // query params
+    List<Pair> queryParams = new ArrayList<Pair>();
+    Map<String, String> headerParams = new HashMap<String, String>();
+    Map<String, Object> formParams = new HashMap<String, Object>();
+
+    final String[] accepts = {
+        "application/json"
+    };
+    final String accept = apiClient.selectHeaderAccept(accepts);
+
+    final String[] contentTypes = {
+    };
+    final String contentType = apiClient.selectHeaderContentType(contentTypes);
+
+    String[] authNames = new String[] { "basic" };
+
+    TypeRef returnType = new TypeRef<DetachedStageConfigurationJson>() {};
     return apiClient.invokeAPI(path, "POST", queryParams, postBody, postBinaryBody, headerParams, formParams, accept,
         contentType, authNames, returnType);
   }

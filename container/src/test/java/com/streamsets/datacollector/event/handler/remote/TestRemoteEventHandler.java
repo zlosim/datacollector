@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.DriftRuleDefinition;
@@ -42,6 +43,7 @@ import com.streamsets.datacollector.event.dto.ClientEvent;
 import com.streamsets.datacollector.event.dto.EventType;
 import com.streamsets.datacollector.event.dto.SDCBuildInfo;
 import com.streamsets.datacollector.event.dto.SDCInfoEvent;
+import com.streamsets.datacollector.event.dto.SaveConfigurationEvent;
 import com.streamsets.datacollector.event.dto.StageInfo;
 import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask.EventHandlerCallable;
@@ -62,6 +64,7 @@ import com.streamsets.datacollector.execution.Runner;
 import com.streamsets.datacollector.execution.manager.PipelineManagerException;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.io.DataStore;
+import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
 import com.streamsets.datacollector.runner.MockStages;
@@ -106,6 +109,7 @@ public class TestRemoteEventHandler {
   private static final UUID id8 = UUID.randomUUID();
   private static final UUID id9 = UUID.randomUUID();
   private static final UUID id10 = UUID.randomUUID();
+  private static final UUID id11 = UUID.randomUUID();
 
   private static final long PING_FREQUENCY = 10;
   private static final MessagingJsonToFromDto jsonDto = MessagingJsonToFromDto.INSTANCE;
@@ -129,6 +133,7 @@ public class TestRemoteEventHandler {
 
       BlobStoreEvent blobStoreEvent = new BlobStoreEvent("n", "a", 1, "X");
       BlobDeleteVersionEvent blobDeleteEvent = new BlobDeleteVersionEvent("n", "a", 1);
+      SaveConfigurationEvent saveConfigurationEvent = new SaveConfigurationEvent(Collections.singletonMap("a", "b"));
 
       List<ServerEventJson> serverEventJsonList = new ArrayList<ServerEventJson>();
       try {
@@ -142,6 +147,7 @@ public class TestRemoteEventHandler {
         ServerEventJson serverEventJson8 = new ServerEventJson();
         ServerEventJson serverEventJson9 = new ServerEventJson();
         ServerEventJson serverEventJson10 = new ServerEventJson();
+        ServerEventJson serverEventJson11 = new ServerEventJson();
         setServerEvent(
             serverEventJson1,
             id1.toString(),
@@ -212,6 +218,14 @@ public class TestRemoteEventHandler {
             true,
             jsonDto.serialize(blobDeleteEvent)
         );
+        setServerEvent(
+            serverEventJson11,
+            id11.toString(),
+            EventType.SAVE_CONFIGURATION,
+            false,
+            false,
+            jsonDto.serialize(saveConfigurationEvent)
+        );
         SyncAclEventJson syncAclEventJson = new SyncAclEventJson();
         AclJson aclJson = new AclJson();
         aclJson.setResourceId("remote:name");
@@ -234,7 +248,8 @@ public class TestRemoteEventHandler {
             serverEventJson7,
             serverEventJson8,
             serverEventJson9,
-            serverEventJson10
+            serverEventJson10,
+            serverEventJson11
         ));
 
       } catch (JsonProcessingException e) {
@@ -415,6 +430,7 @@ public class TestRemoteEventHandler {
     public boolean syncAclCalled;
     public boolean blobStoreCalled;
     public boolean blobDeleteCalled;
+    public Map<String, String> savedConfiguration;
 
     @Override
     public void start(Runner.StartPipelineContext context, String name, String rev) throws PipelineException, StageException {
@@ -563,6 +579,11 @@ public class TestRemoteEventHandler {
     }
 
     @Override
+    public void storeConfiguration(Map<String, String> newConfiguration) throws IOException {
+      this.savedConfiguration = newConfiguration;
+    }
+
+    @Override
     public Future<AckEvent> stopAndDelete(String user, String name, String rev, long forceStopTimeout) throws PipelineException,
         StageException {
       stopDeletePipelineCalled = true;
@@ -579,17 +600,18 @@ public class TestRemoteEventHandler {
         new MockBaseEventSenderReceiver(),
         jsonToFromDto,
         ackEventJsonList,
-
         new ArrayList<ClientEvent>(),
         null,
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(-1, remoteEventHandler.getDelay());
@@ -638,6 +660,10 @@ public class TestRemoteEventHandler {
     assertTrue(mockRemoteDataCollector.blobDeleteCalled);
     assertFalse(mockRemoteDataCollector.savePipelineCalled);
     assertFalse(mockRemoteDataCollector.savePipelineRulesCalled);
+
+    assertNotNull(mockRemoteDataCollector.savedConfiguration);
+    assertTrue(mockRemoteDataCollector.savedConfiguration.containsKey("a"));
+    assertEquals("b", mockRemoteDataCollector.savedConfiguration.get("a"));
   }
 
   @Test
@@ -657,11 +683,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
         dataStore,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(-1, remoteEventHandler.getDelay());
@@ -688,11 +716,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     // start event in error
     mockRemoteDataCollector.errorInjection = true;
@@ -719,11 +749,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(PING_FREQUENCY, remoteEventHandler.getDelay());
@@ -755,11 +787,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         stopwatch,
         60000,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(1, mockBaseEventSenderReceiver.clientJson.size());
@@ -781,14 +815,16 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         stopwatch,
         5,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
-    assertEquals(1, mockBaseEventSenderReceiver.clientJson.size());
+    assertEquals(2, mockBaseEventSenderReceiver.clientJson.size());
     clientEventJson = mockBaseEventSenderReceiver.clientJson.get(0);
     PipelineStatusEventsJson pipelineStatusEventsJson = jsonToFromDto.deserialize(
         clientEventJson.getPayload(),
@@ -826,7 +862,8 @@ public class TestRemoteEventHandler {
         sdcBuildInfo,
         Arrays.asList("label_1", "label_2"),
         2,
-        "foo"
+        "foo",
+        10000
     );
     ClientEvent clientEvent = new ClientEvent(
         id1.toString(),
@@ -846,14 +883,16 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
-    assertEquals(2, mockBaseEventSenderReceiver.clientJson.size());
+    assertEquals(3, mockBaseEventSenderReceiver.clientJson.size());
     assertEquals(EventType.SDC_INFO_EVENT.getValue(), mockBaseEventSenderReceiver.clientJson.get(0).getEventTypeId());
     assertEquals(
         EventType.STATUS_MULTIPLE_PIPELINES.getValue(),
@@ -898,11 +937,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
         dataStore,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     remoteEventHandler.callRemoteControl();
     Mockito.verify(dataStore, Mockito.times(1)).commit(Mockito.any(OutputStream.class));
@@ -923,11 +964,13 @@ public class TestRemoteEventHandler {
         null,
         -1,
         Arrays.asList("JOB_RUNNER"),
+        ImmutableList.of("jobrunner-app", "timeseries-app"),
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
         null,
-        new HashMap<>()
+        new HashMap<>(),
+        Mockito.mock(RuntimeInfo.class)
     );
     ServerEventJson serverEventJson = new ServerEventJson();
     serverEventJson.setRequiresAck(true);
@@ -940,39 +983,4 @@ public class TestRemoteEventHandler {
     clientEvent = remoteEventHandler.handlePipelineEvent(serverEventJson);
     Assert.assertNull(clientEvent);
   }
-
-  /*
-  @Test
-  public void testBlobStoreEvents() throws Exception {
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(Mockito.mock(RemoteDataCollector.class),
-        Mockito.mock(EventClient.class),
-        MessagingJsonToFromDto.INSTANCE,
-        new ArrayList<>(),
-        new ArrayList<>(),
-        Mockito.mock(ClientEvent.class),
-        null,
-        -1,
-        Arrays.asList("JOB_RUNNER"),
-        new HashMap<>(),
-        Stopwatch.createStarted(),
-        -1,
-        null,
-        new HashMap<>()
-    );
-
-    BlobStoreEvent storeEvent = new BlobStoreEvent();
-    BlobDeleteEvent deleteEvent = new BlobDeleteEvent();
-
-    ServerEventJson
-
-    ClientEvent clientEvent = remoteEventHandler.handlePipelineEvent(storeEvent);
-    Assert.assertNotNull(clientEvent);
-    Assert.assertEquals(EventType.ACK_EVENT, clientEvent.getEventType());
-    Assert.assertEquals(AckEventStatus.IGNORE, ((AckEvent)clientEvent.getEvent()).getAckEventStatus());
-    serverEventJson.setRequiresAck(false);
-    clientEvent = remoteEventHandler.handlePipelineEvent(serverEventJson);
-    Assert.assertNull(clientEvent);
-  }
-  */
-
 }

@@ -19,7 +19,7 @@ import com.streamsets.pipeline.api.Label;
 
 public enum Groups implements Label {
   JOB("Job"),
-  AVRO_TO_PARQUET("Avro to Parquet")
+  AVRO_PARQUET("Avro to Parquet")
   ;
 
   private final String label;

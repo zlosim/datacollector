@@ -59,6 +59,8 @@ public class DirectorySpooler {
   private final WrappedFileSystem fs;
   private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
 
+  private final long intervalMillis;
+
   public enum FilePostProcessing {NONE, DELETE, ARCHIVE}
 
   public static Builder builder() {
@@ -261,6 +263,7 @@ public class DirectorySpooler {
     this.fs = fs;
 
     pathComparator = fs.getComparator(useLastModified);
+    intervalMillis = 5000;
   }
 
   private volatile WrappedFile currentFile;
@@ -293,8 +296,7 @@ public class DirectorySpooler {
       spoolDirPath = fs.getFile(spoolDir);
 
       if(StringUtils.isEmpty(sourceFile)) {
-        sourceFile = "";
-        this.currentFile = fs.getFile(sourceFile);
+        this.currentFile = null;
       } else {
         // sourceFile can contain: a filename, a partial path (relative to spoolDirPath),
         // or a full path.
@@ -348,7 +350,7 @@ public class DirectorySpooler {
   private void startSpooling(WrappedFile currentFile) throws IOException {
     running = true;
 
-    if(!context.isPreview()) {
+    if(!context.isPreview() && currentFile != null) {
       handleOlderFiles(currentFile);
     }
 
@@ -445,7 +447,7 @@ public class DirectorySpooler {
   private void addFileToQueue(WrappedFile file, boolean checkCurrent) {
     Preconditions.checkNotNull(file, "file cannot be null");
     if (checkCurrent) {
-      boolean valid = StringUtils.isEmpty(currentFile.toString()) || fs.compare(file, currentFile, useLastModified) < 0;
+      boolean valid = currentFile == null || StringUtils.isEmpty(currentFile.toString()) || fs.compare(file, currentFile, useLastModified) < 0;
       if (!valid) {
         LOG.warn("File cannot be added to the queue: " + file.toString());
       }
@@ -484,23 +486,37 @@ public class DirectorySpooler {
     Preconditions.checkState(running, "Spool directory findDirectoryPathCreationWatcher not running");
 
     WrappedFile next = null;
-    closeLock.readLock().lock();
-    try {
-      LOG.debug("Polling for file, waiting '{}' ms", TimeUnit.MILLISECONDS.convert(wait, timeUnit));
-      next = filesQueue.poll(wait, timeUnit);
-      filesSet.remove(next); // clear entry from mirror of filesQueue "search only" set
-    } catch (InterruptedException ex) {
-      next = null;
-    } finally {
-      LOG.debug("Polling for file returned '{}'", next);
-      if (next != null) {
-        currentFile = next;
-        previousFile = next;
+
+    LOG.debug("Polling for file, waiting '{}' ms", TimeUnit.MILLISECONDS.convert(wait, timeUnit));
+
+    long initial = System.currentTimeMillis();
+
+    while (!context.isStopped() && System.currentTimeMillis() - initial < wait && next == null) {
+      closeLock.readLock().lock();
+      try {
+        next = filesQueue.poll();
+        if (next != null) {
+          filesSet.remove(next);
+          break;
+        }
+      } finally {
+        LOG.debug("Polling for file returned '{}'", next);
+
+        if (next != null) {
+          currentFile = next;
+          previousFile = next;
+        }
+
+        closeLock.readLock().unlock();
       }
-      closeLock.readLock().unlock();
+
+      if (next == null) {
+        Thread.sleep(intervalMillis);
+      }
     }
+
     pendingFilesCounter.inc(filesQueue.size() - pendingFilesCounter.getCount());
-    return (next != null) ? next : null;
+    return next;
   }
 
   public void handleCurrentFileAsError() throws IOException {
@@ -562,30 +578,35 @@ public class DirectorySpooler {
       directories.add(spoolDirPath);
     }
 
-    closeLock.writeLock().lock();
-    try {
-      for (WrappedFile dir : directories) {
-        try {
-          List<WrappedFile> matchingFile = new ArrayList<>();
-          fs.addFiles(dir, currentFile, matchingFile, includeStartingFile, useLastModified);
 
-          //WrappedFile archiveDirPath, List<WrappedFile> toProcess, long timeThreshold
-          for (WrappedFile file : matchingFile) {
-            if (!running) {
-              return null;
+    for (WrappedFile dir : directories) {
+      try {
+        List<WrappedFile> matchingFile = new ArrayList<>();
+
+        fs.addFiles(dir, currentFile, matchingFile, includeStartingFile, useLastModified);
+
+        if (matchingFile.size() > 0) {
+          try {
+            // if there are matching files, acquire write lock
+            closeLock.writeLock().lock();
+
+            for (WrappedFile file : matchingFile) {
+              if (!running) {
+                return null;
+              }
+              if (fs.isDirectory(file)) {
+                continue;
+              }
+              LOG.trace("Found file '{}'", file);
+              addFileToQueue(file, checkCurrent);
             }
-            if (fs.isDirectory(file)) {
-              continue;
-            }
-            LOG.trace("Found file '{}'", file);
-            addFileToQueue(file, checkCurrent);
+          } finally {
+            closeLock.writeLock().unlock();
           }
-        } catch (Exception ex) {
-          LOG.error("findAndQueueFiles(): newDirectoryStream failed. " + ex.getMessage(), ex);
         }
+      } catch (Exception ex) {
+        LOG.error("findAndQueueFiles(): newDirectoryStream failed. " + ex.getMessage(), ex);
       }
-    } finally {
-      closeLock.writeLock().unlock();
     }
 
     spoolQueueMeter.mark(filesQueue.size());

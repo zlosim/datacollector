@@ -34,6 +34,7 @@ import com.streamsets.datacollector.config.MemoryLimitExceeded;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.el.PipelineEL;
+import com.streamsets.datacollector.execution.SnapshotInfo;
 import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.execution.metrics.MetricsEventRunnable;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
@@ -51,17 +52,16 @@ import com.streamsets.datacollector.runner.EventSink;
 import com.streamsets.datacollector.runner.FullPipeBatch;
 import com.streamsets.datacollector.runner.Observer;
 import com.streamsets.datacollector.runner.Pipe;
-import com.streamsets.datacollector.runner.PipeBatch;
 import com.streamsets.datacollector.runner.PipeContext;
 import com.streamsets.datacollector.runner.PipeRunner;
 import com.streamsets.datacollector.runner.PipelineRunner;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.ProcessedSink;
 import com.streamsets.datacollector.runner.PushSourceContextDelegate;
-import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.RunnerPool;
 import com.streamsets.datacollector.runner.SourceOffsetTracker;
 import com.streamsets.datacollector.runner.SourcePipe;
+import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.StageContext;
 import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.StagePipe;
@@ -185,6 +185,8 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
   private PipelineConfiguration pipelineConfiguration = null;
   private Lock destroyLock = new ReentrantLock();
 
+  private long pipelineStartTime;
+
   @Inject
   public ProductionPipelineRunner(
       @Named("name") String pipelineName,
@@ -302,6 +304,10 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
   public void setOffsetTracker(SourceOffsetTracker offsetTracker) {
     this.offsetTracker = offsetTracker;
+  }
+
+  public void setPipelineStartTime(long pipelineStartTime) {
+    this.pipelineStartTime = pipelineStartTime;
   }
 
   public void setThreadHealthReporter(ThreadHealthReporter threadHealthReporter) {
@@ -447,7 +453,11 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     originPipe.prepareBatchContext(batchContext);
 
     // Since the origin owns the threads in PushSource, need to re-populate the PipelineEL on every batch
-    PipelineEL.setConstantsInContext(pipelineConfiguration, originPipe.getStage().getContext().getUserContext());
+    PipelineEL.setConstantsInContext(
+        pipelineConfiguration,
+        originPipe.getStage().getContext().getUserContext(),
+        pipelineStartTime
+    );
 
     // Run batch listeners
     for (BatchListener batchListener : batchListenerList) {
@@ -464,13 +474,13 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     Map<String, Long> memoryConsumedByStage = new HashMap<>();
     Map<String, Object> stageBatchMetrics = new HashMap<>();
 
-    Map<String, Object> batchMetrics = originPipe.finishBatchContext(batchContext);
-
-    if (isStatsAggregationEnabled()) {
-      stageBatchMetrics.put(originPipe.getStage().getInfo().getInstanceName(), batchMetrics);
-    }
-
     try {
+      Map<String, Object> batchMetrics = originPipe.finishBatchContext(batchContext);
+
+      if (isStatsAggregationEnabled()) {
+        stageBatchMetrics.put(originPipe.getStage().getInfo().getInstanceName(), batchMetrics);
+      }
+
       runSourceLessBatch(
         batchContext.getStartTime(),
         batchContext.getPipeBatch(),
@@ -705,7 +715,7 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
           }
         });
 
-        badRecordsHandler.handle(null, null, pipeBatch.getErrorSink());
+        badRecordsHandler.handle(null, null, pipeBatch.getErrorSink(), pipeBatch.getSourceResponseSink());
 
         // Next iteration should have new and empty PipeBatch
         pipeBatch = new FullPipeBatch(null, null, batchSize, false);
@@ -781,7 +791,7 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
   private boolean processPipe(
     Pipe pipe,
-    PipeBatch pipeBatch,
+    FullPipeBatch pipeBatch,
     boolean committed,
     String entityName,
     String newOffset,
@@ -792,13 +802,15 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     // Set the last batch time in the stage context of each pipe
     ((StageContext)pipe.getStage().getContext()).setLastBatchTime(offsetTracker.getLastBatchTime());
 
-    if (deliveryGuarantee == DeliveryGuarantee.AT_MOST_ONCE
+    if(!pipeBatch.isIdleBatch()) {
+      if (deliveryGuarantee == DeliveryGuarantee.AT_MOST_ONCE
         && pipe.getStage().getDefinition().getType() == StageType.TARGET
         && !committed
       ) {
-      // target cannot control offset commit in AT_MOST_ONCE mode
-      offsetTracker.commitOffset(entityName, newOffset);
-      committed = true;
+        // target cannot control offset commit in AT_MOST_ONCE mode
+        offsetTracker.commitOffset(entityName, newOffset);
+        committed = true;
+      }
     }
     pipe.process(pipeBatch);
     if (pipe instanceof StagePipe) {
@@ -850,13 +862,15 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     });
 
     enforceMemoryLimit(memoryConsumedByStage);
-    badRecordsHandler.handle(entityName, newOffset, pipeBatch.getErrorSink());
-    if (deliveryGuarantee == DeliveryGuarantee.AT_LEAST_ONCE) {
-      // When AT_LEAST_ONCE commit only if
-      // 1. There is no offset commit trigger for this pipeline or
-      // 2. there is a commit trigger and it is on
-      if (offsetCommitTrigger == null || offsetCommitTrigger.commit()) {
-        offsetTracker.commitOffset(entityName, newOffset);
+    badRecordsHandler.handle(entityName, newOffset, pipeBatch.getErrorSink(), pipeBatch.getSourceResponseSink());
+    if(!pipeBatch.isIdleBatch()) {
+      if (deliveryGuarantee == DeliveryGuarantee.AT_LEAST_ONCE) {
+        // When AT_LEAST_ONCE commit only if
+        // 1. There is no offset commit trigger for this pipeline or
+        // 2. there is a commit trigger and it is on
+        if (offsetCommitTrigger == null || offsetCommitTrigger.commit()) {
+          offsetTracker.commitOffset(entityName, newOffset);
+        }
       }
     }
 
@@ -942,8 +956,9 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
    * for more then idleTime.
    *
    * @param idleTime Number of milliseconds after which a runner is considered "idle"
+   * @return Number of idle batches generated in this iteration
    */
-  public void produceEmptyBatchesForIdleRunners(long idleTime) throws PipelineException, StageException {
+  public int produceEmptyBatchesForIdleRunners(long idleTime) throws PipelineException, StageException {
     LOG.debug("Checking if any active runner is idle");
 
     // The empty batch is suppose to be fast - almost as a zero time. It could however happened that from some reason it
@@ -963,7 +978,7 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
           // No more idle runners, simply stop the idle execution now
           if(runner == null) {
-            return;
+            return counter;
           }
 
           LOG.debug("Generating empty batch for runner: {}", runner.getRunnerId());
@@ -971,6 +986,7 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
           // Pipe batch to keep the batch info
           FullPipeBatch pipeBatch = new FullPipeBatch(null, null, 0, false);
+          pipeBatch.setIdleBatch(true);
 
           // We're explicitly skipping origin because this is framework generated, empty batch
           pipeBatch.skipStage(originPipe);
@@ -993,6 +1009,8 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     } finally {
       destroyLock.unlock();
     }
+
+    return counter;
   }
 
   private void enforceMemoryLimit(Map<String, Long> memoryConsumedByStage) throws PipelineRuntimeException {
@@ -1130,9 +1148,17 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     }
 
     try {
+      for(SnapshotInfo info : snapshotStore.getSummaryForPipeline(pipelineName, revision)) {
+        // Allow only one failure snapshot to be present on a pipeline
+        if(info.isFailureSnapshot()) {
+          LOG.trace("Skipping creation of failure snapshot as {} already exists.", info.getId());
+          return;
+        }
+      }
+
       String snapshotName = "Failure_" + UUID.randomUUID().toString();
       String snapshotLabel = "Failure at " + LocalDateTime.now().toString();
-      snapshotStore.create("", pipelineName, revision, snapshotName, snapshotLabel);
+      snapshotStore.create("", pipelineName, revision, snapshotName, snapshotLabel, true);
       snapshotStore.save(pipelineName, revision, snapshotName, -1, ImmutableList.of(pipeBatch.createFailureSnapshot()));
     } catch (PipelineException ex) {
       LOG.error("Can't serialize failure snapshot", ex);

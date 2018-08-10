@@ -23,12 +23,12 @@
     <parent>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>3.5.0-SNAPSHOT</version>
         <relativePath>../stage-lib-parent</relativePath>
     </parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-cdh_6_0-lib</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <description>StreamSets Data Collector CDH 6.0 Lib</description>
     <name>StreamSets Data Collector CDH 6.0 Lib</name>
     <packaging>jar</packaging>
@@ -65,67 +65,6 @@
     </repositories>
 
     <dependencies>
-        <!--Dependency for Solr Unit Tests to override SDC Jetty Artifacts -->
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-continuation</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-deploy</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-http</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-jmx</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-security</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-server</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-servlet</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-util</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-webapp</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-xml</artifactId>
-            <version>${solr.test.jetty.version}</version>
-            <scope>test</scope>
-        </dependency>
 
         <!--
         <dependency>
@@ -271,8 +210,6 @@
             </exclusions>
         </dependency>
 
-
-        <!--
         <dependency>
             <groupId>com.streamsets</groupId>
             <artifactId>streamsets-datacollector-hbase-protolib</artifactId>
@@ -285,7 +222,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        -->
 
         <!-- Hive related -->
         <!--
@@ -437,7 +373,6 @@
             </exclusions>
         </dependency>
 
-        <!--
         <dependency>
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-client</artifactId>
@@ -467,10 +402,8 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        -->
 
         <!-- Solr related -->
-        <!--
         <dependency>
             <groupId>org.apache.solr</groupId>
             <artifactId>solr-solrj</artifactId>
@@ -545,7 +478,6 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
-        -->
 
         <dependency>
             <groupId>com.streamsets</groupId>
@@ -738,11 +670,12 @@
                                 -->
                                 <source>${basedir}/../flume-protolib/src/test/java</source>
                                 <source>${basedir}/../hdfs-protolib/src/test/java</source>
+                                <source>${basedir}/../hbase-protolib/src/test/java</source>
                                 <!-- Tests are failing compilation -->
-                                <!--                                <source>${basedir}/../hbase-protolib/src/test/java</source> -->
                                 <!--                                <source>${basedir}/../hive-protolib/src/test/java</source> -->
                                 <source>${basedir}/../kudu-protolib/src/test/java</source>
                                 <source>${basedir}/../mapreduce-protolib/src/test/java</source>
+                                <source>${basedir}/../solr-protolib/src/test/java</source>
 
                                 <source>${basedir}/../spark-executor-protolib/src/test/java</source>
                                 <source>${basedir}/../spark-processor-protolib/src/test/java</source>
@@ -768,19 +701,15 @@
                                     <directory>${basedir}/../hive-protolib/src/test/resources</directory>
                                 </resource>
                                  -->
-                                  <!--
                                 <resource>
                                     <directory>${basedir}/../hbase-protolib/src/test/resources</directory>
                                 </resource>
-                                -->
                                 <resource>
                                     <directory>${basedir}/../kudu-protolib/src/test/resources</directory>
                                 </resource>
-                                <!--
                                 <resource>
                                     <directory>${basedir}/../solr-protolib/src/test/resources</directory>
                                 </resource>
-                                -->
                                 <resource>
                                     <directory>${basedir}/../flume-protolib/src/test/resources</directory>
                                 </resource>

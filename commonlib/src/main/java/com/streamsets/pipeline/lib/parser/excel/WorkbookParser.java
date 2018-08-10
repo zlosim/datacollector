@@ -23,11 +23,7 @@ import com.streamsets.pipeline.lib.parser.AbstractDataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.parser.RecoverableDataParserException;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +50,7 @@ public class WorkbookParser extends AbstractDataParser {
   private String offset;
   private boolean eof;
   private FormulaEvaluator evaluator;
+  private String currentSheet;
 
   private HashMap<String, List<Field>> headers;
 
@@ -68,28 +65,38 @@ public class WorkbookParser extends AbstractDataParser {
     this.rowIterator = iterate(this.workbook);
     this.offset = requireNonNull(offsetId);
     this.evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+    this.currentSheet = null; // default to blank.   Used to figure out when sheet changes and get new field names from header row
 
     if (!rowIterator.hasNext()) {
       throw new DataParserException(Errors.EXCEL_PARSER_04);
     }
 
     headers = new HashMap<>();
-    if (settings.getHeader() != NO_HEADER) {
-      // Advance past the header row in the stream of workbook rows
-      rowIterator.next();
-    }
-    if (settings.getHeader() == WITH_HEADER) {
-      for (Sheet sheet : workbook) {
+
+    // If Headers are expected, go through and get them from each sheet
+    if (settings.getHeader() == ExcelHeader.WITH_HEADER) {
+      Sheet sheet;
+      String sheetName;
+      Row hdrRow;
+      for (int s=0; s<workbook.getNumberOfSheets(); s++) {
+        sheet = workbook.getSheetAt(s);
+        sheetName = sheet.getSheetName();
+        hdrRow = sheet.rowIterator().next();
         List<Field> sheetHeaders = new ArrayList<>();
-        Row headerRow = sheet.getRow(0);
-        for (Cell cell : headerRow) {
+        // if the table happens to have blank columns in front of it, loop through and artificially add those as headers
+        // This helps in the matching of headers to data later as the indexes will line up properly.
+        for (int columnNum=0; columnNum < hdrRow.getFirstCellNum(); columnNum++) {
+          sheetHeaders.add(Field.create(""));
+        }
+        for (int columnNum = hdrRow.getFirstCellNum(); columnNum < hdrRow.getLastCellNum(); columnNum++) {
+          Cell cell = hdrRow.getCell(columnNum);
           try {
             sheetHeaders.add(Cells.parseCell(cell, this.evaluator));
           } catch (ExcelUnsupportedCellTypeException e) {
             throw new DataParserException(Errors.EXCEL_PARSER_05, cell.getCellTypeEnum());
           }
         }
-        headers.put(sheet.getSheetName(), sheetHeaders);
+        headers.put(sheetName, sheetHeaders);
       }
     }
 
@@ -101,9 +108,14 @@ public class WorkbookParser extends AbstractDataParser {
         Row row = rowIterator.next();
         int rowNum = row.getRowNum();
         String sheetName = row.getSheet().getSheetName();
-        if (startSheetName.equals(sheetName) && rowNum == startRowNum) {
+        // if a sheet has blank rows at the top then the starting row number may be higher than a default offset of zero or one, thus the >= compare
+        if (startSheetName.equals(sheetName) && rowNum >= startRowNum) {
           if (rowIterator.hasPrevious()) {
-            rowIterator.previous();
+            row = rowIterator.previous();
+            this.currentSheet = row.getRowNum() == row.getSheet().getFirstRowNum() ? null : row.getSheet().getSheetName(); // used in comparison later to see if we've moved to new sheet
+          }
+          else {
+            this.currentSheet = null;
           }
           break;
         }
@@ -125,11 +137,31 @@ public class WorkbookParser extends AbstractDataParser {
       eof = true;
       return null;
     }
+
     Row currentRow = rowIterator.next();
-    if ((settings.getHeader() == ExcelHeader.WITH_HEADER || settings.getHeader() == ExcelHeader.IGNORE_HEADER)
-        && currentRow.getRowNum() == 0) {
-      currentRow = rowIterator.next();
+
+    // skip over rows that have cells but all cells are of BLANK celltype.
+    while (rowIsBlank(currentRow)) {
+      if (rowIterator.hasNext()) {
+        currentRow = rowIterator.next();
+      }
+      else {
+        // end of file and this last row is blank.  Bail out.
+        eof = true;
+        return null;
+      }
     }
+
+    // see if a new worksheet has been entered.
+    if (this.currentSheet == null || ! this.currentSheet.equals(currentRow.getSheet().getSheetName())) {
+      this.currentSheet = currentRow.getSheet().getSheetName();
+      // if header is expected, then jump over this row
+      if (settings.getHeader() == ExcelHeader.WITH_HEADER || settings.getHeader() == ExcelHeader.IGNORE_HEADER) {
+        currentRow = rowIterator.next();  // move to the next row to parse as data
+      }
+    }
+
+
     offset = Offsets.offsetOf(currentRow);
     Record record = context.createRecord(offset);
     updateRecordWithCellValues(currentRow, record);
@@ -146,17 +178,33 @@ public class WorkbookParser extends AbstractDataParser {
     workbook.close();
   }
 
+  private boolean rowIsBlank(Row row) {
+    // returns true if a row has cells but all cells are 'BLANK' type.
+    boolean isBlank = true;
+    for (int columnNum = row.getFirstCellNum(); columnNum < row.getLastCellNum(); columnNum++) {
+      Cell c = row.getCell(columnNum);
+      isBlank = isBlank && (c == null || c.getCellTypeEnum() == CellType.BLANK);
+      if (! isBlank) break;
+    }
+    return isBlank;
+  }
+
   private void updateRecordWithCellValues(Row row, Record record) throws DataParserException {
     LinkedHashMap<String, Field> output = new LinkedHashMap<>();
     String sheetName = row.getSheet().getSheetName();
     String columnHeader;
     Set<String> unsupportedCellTypes = new HashSet<>();
-    for (int columnNum = 0; columnNum < row.getLastCellNum(); columnNum++) {
+    for (int columnNum = row.getFirstCellNum(); columnNum < row.getLastCellNum(); columnNum++) {
       if (headers.isEmpty()) {
         columnHeader = String.valueOf(columnNum);
       } else {
-        columnHeader = headers.get(sheetName).get(columnNum).getValueAsString();
+        if (columnNum >= headers.get(sheetName).size()) {
+          columnHeader = String.valueOf(columnNum);   // no header for this column.  mismatch
+        } else {
+          columnHeader = headers.get(sheetName).get(columnNum).getValueAsString();
+        }
       }
+
       Cell cell = row.getCell(columnNum, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
       try {
         output.put(columnHeader, Cells.parseCell(cell, this.evaluator));
@@ -165,6 +213,14 @@ public class WorkbookParser extends AbstractDataParser {
         unsupportedCellTypes.add(e.getCellType().name());
       }
     }
+
+
+    // Set interesting metadata about the row
+    Record.Header hdr = record.getHeader();
+    hdr.setAttribute("worksheet", row.getSheet().getSheetName());
+    hdr.setAttribute("row",  Integer.toString(row.getRowNum()));
+    hdr.setAttribute("firstCol", Integer.toString(row.getFirstCellNum()));
+    hdr.setAttribute("lastCol", Integer.toString(row.getLastCellNum()));
     record.set(Field.createListMap(output));
     if (unsupportedCellTypes.size() > 0) {
       throw new RecoverableDataParserException(record, Errors.EXCEL_PARSER_05, StringUtils.join(unsupportedCellTypes, ", "));

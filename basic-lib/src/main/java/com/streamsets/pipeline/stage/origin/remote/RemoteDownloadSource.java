@@ -29,6 +29,10 @@ import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.ext.io.ObjectLengthException;
 import com.streamsets.pipeline.api.ext.io.OverrunException;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
 import com.streamsets.pipeline.lib.parser.DataParser;
@@ -258,8 +262,21 @@ public class RemoteDownloadSource extends BaseSource {
       }
 
       if (issues.isEmpty()) {
-        // To ensure we can connect, else we fail validation.
-        remoteDir = fsManager.resolveFile(remoteURI.toString(), options);
+        try {
+          // To ensure we can connect, else we fail validation.
+          remoteDir = fsManager.resolveFile(remoteURI.toString(), options);
+          // Ensure we can assess the remote directory...
+          remoteDir.refresh();
+          // throw away the results.
+          remoteDir.getChildren();
+        } catch (FileSystemException ex) {
+          issues.add(getContext().createConfigIssue(
+              Groups.REMOTE.getLabel(),
+              CONF_PREFIX + "remoteAddress",
+              Errors.REMOTE_18,
+              ex.getMessage()
+          ));
+        }
       }
 
     } catch (FileSystemException | URISyntaxException ex) {
@@ -372,6 +389,8 @@ public class RemoteDownloadSource extends BaseSource {
 
             LOG.debug("Sending New File Event. File: {}", next.filename);
             RemoteDownloadSourceEvents.NEW_FILE.create(getContext()).with("filepath", next.filename).createAndSend();
+
+            sendLineageEvent(next);
 
             currentOffset = new Offset(next.remoteObject.getName().getPath(),
                 next.remoteObject.getContent().getLastModifiedTime(), ZERO);
@@ -534,7 +553,12 @@ public class RemoteDownloadSource extends BaseSource {
   }
 
   private void handleFatalException(Exception ex, RemoteFile next) throws StageException {
-    LOG.error("Error while attempting to parse file: " + next.filename, ex);
+    if (ex instanceof FileSystemException) {
+      LOG.info("FileSystemException '{}'", ex.getMessage());
+    }
+    if (next != null) {
+      LOG.error("Error while attempting to parse file: " + next.filename, ex);
+    }
     if (ex instanceof FileNotFoundException) {
       LOG.warn("File: {} was found in listing, but is not downloadable", next != null ? next.filename : "(null)", ex);
     }
@@ -601,12 +625,12 @@ public class RemoteDownloadSource extends BaseSource {
   private void queueFiles() throws FileSystemException {
     FileSelector selector = new FileSelector() {
       @Override
-      public boolean includeFile(FileSelectInfo fileInfo) throws Exception {
+      public boolean includeFile(FileSelectInfo fileInfo) {
         return true;
       }
 
       @Override
-      public boolean traverseDescendents(FileSelectInfo fileInfo) throws Exception {
+      public boolean traverseDescendents(FileSelectInfo fileInfo) {
         return conf.processSubDirectories;
       }
     };
@@ -710,6 +734,17 @@ public class RemoteDownloadSource extends BaseSource {
       currentOffset = null;
       next = null;
     }
+  }
+
+  private void sendLineageEvent(RemoteFile next) {
+    LineageEvent event = getContext().createLineageEvent(LineageEventType.ENTITY_READ);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME, next.filename);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE, EndPointType.FTP.name());
+    event.setSpecificAttribute(LineageSpecificAttribute.DESCRIPTION, conf.filePattern);
+    Map<String, String> props = new HashMap<>();
+    props.put("Resource URL", conf.remoteAddress);
+    event.setProperties(props);
+    getContext().publishLineageEvent(event);
   }
 
   // Offset format: Filename::timestamp::offset. I miss case classes here.

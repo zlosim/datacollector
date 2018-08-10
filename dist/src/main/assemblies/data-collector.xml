@@ -267,6 +267,10 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
+      <directory>${basedir}/../${cdh_5_15-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
       <directory>${basedir}/../${cdh_6_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
@@ -380,6 +384,10 @@
       <directory>${basedir}/../${apache-kafka_1_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${apache-kafka_1_1-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
 
     <!-- Cassandra libs -->
     <fileSet>
@@ -400,6 +408,11 @@
     <!-- Azure libs -->
     <fileSet>
       <directory>${basedir}/../azure-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <fileSet>
+      <directory>${basedir}/../azure-keyvault-credentialstore-lib/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -443,6 +456,12 @@
 
     <fileSet>
       <directory>${basedir}/../${mapr_spark_2_1_mep_3_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- CouchBase libs -->
+     <fileSet>
+      <directory>${basedir}/../${couchbase_5-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -524,6 +543,10 @@
     <!-- cyberark-credentialstore-lib -->
     <fileSet>
       <directory>${basedir}/../cyberark-credentialstore-lib/target/streamsets-libs/</directory>
+    </fileSet>
+
+    <fileSet>
+      <directory>${basedir}/../${tensorflow-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -537,6 +560,18 @@
 
     <fileSet>
       <directory>${basedir}/../${emr_hadoop_2_8_3-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- Pulsar libs -->
+
+    <fileSet>
+      <directory>${basedir}/../${apache-pulsar_2-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <fileSet>
+      <directory>${basedir}/../${azure-keyvault_1_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 

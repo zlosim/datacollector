@@ -59,6 +59,7 @@ angular
 
     angular.extend($scope, {
       fieldPaths: [],
+      codeMirrorErrors: {},
       dFieldPaths: [],
       fieldPathsType: [],
       fieldSelectorPaths: [],

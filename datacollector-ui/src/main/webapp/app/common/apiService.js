@@ -583,13 +583,18 @@ angular.module('dataCollectorApp.common')
        *
        * @param name
        * @param description
+       * @param pipelineType
        */
-      createNewPipelineConfig: function(name, description) {
-        var url = apiBase + '/pipeline/' + encodeURIComponent(name) + '?autoGeneratePipelineId=true&description=' + description;
-
+      createNewPipelineConfig: function(name, description, pipelineType) {
+        var url = apiBase + '/pipeline/' + encodeURIComponent(name);
         return $http({
           method: 'PUT',
-          url: url
+          url: url,
+          params: {
+            autoGeneratePipelineId: true,
+            description: description,
+            pipelineType: pipelineType
+          }
         });
       },
 
@@ -1682,6 +1687,26 @@ angular.module('dataCollectorApp.common')
     };
 
     api.system = {
+      /**
+       * Get stats and opt in/out status
+       *
+       * @returns {*}
+       */
+      getStats: () => $http({
+        method: 'GET',
+        url: apiBase + '/system/stats'
+      }),
+
+      /**
+       * Set opt in/out status for stats
+       *
+       * @returns {*}
+       */
+      setOptInStatus: isOptIn => $http({
+        method: 'POST',
+        url: apiBase + '/system/stats?active=' + (!!isOptIn)
+      }),
+
       /**
        * Get all support bundle generators
        *

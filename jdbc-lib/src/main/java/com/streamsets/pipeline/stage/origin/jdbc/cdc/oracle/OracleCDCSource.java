@@ -42,6 +42,7 @@ import com.streamsets.pipeline.lib.operation.OperationType;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.ChangeTypeValues;
+import com.streamsets.pipeline.stage.origin.jdbc.cdc.SchemaAndTable;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.SchemaTableConfigBean;
 import com.zaxxer.hikari.HikariDataSource;
 import net.jcip.annotations.GuardedBy;
@@ -819,14 +820,20 @@ public class OracleCDCSource extends BaseSource {
   private boolean handleUnsupportedFieldTypes(Record r, String error) {
     switch (configBean.unsupportedFieldOp) {
       case SEND_TO_PIPELINE:
-        LOG.debug(Utils.format(UNSUPPORTED_SEND_TO_PIPELINE, error, r.getHeader().getAttribute(TABLE)));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug(UNSUPPORTED_SEND_TO_PIPELINE, error, r.getHeader().getAttribute(TABLE));
+        }
         return true;
       case TO_ERROR:
-        LOG.debug(Utils.format(UNSUPPORTED_TO_ERR, error, r.getHeader().getAttribute(TABLE)));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug(UNSUPPORTED_TO_ERR, error, r.getHeader().getAttribute(TABLE));
+        }
         getContext().toError(r, JDBC_85, error, r.getHeader().getAttribute(TABLE));
         return false;
       case DISCARD:
-        LOG.debug(Utils.format(UNSUPPORTED_DISCARD, error, r.getHeader().getAttribute(TABLE)));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug(UNSUPPORTED_DISCARD, error, r.getHeader().getAttribute(TABLE));
+        }
         return false;
       default:
         throw new IllegalStateException("Unknown Record Handling option");
