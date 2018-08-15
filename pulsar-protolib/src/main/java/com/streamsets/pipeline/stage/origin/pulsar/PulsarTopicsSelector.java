@@ -13,25 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.streamsets.pipeline.stage.origin.systemmetrics;
 
-import com.streamsets.pipeline.api.GenerateResourceBundle;
+package com.streamsets.pipeline.stage.origin.pulsar;
+
 import com.streamsets.pipeline.api.Label;
 
-@GenerateResourceBundle
-public enum Groups implements Label {
-  SYSTEM_METRICS("System Metrics"),
-  PROCESS("Process"),
-  ;
+public enum PulsarTopicsSelector implements Label {
+  SINGLE_TOPIC("Single Topic"),
+  TOPICS_LIST("Topics List"),
+  TOPICS_PATTERN("Topics Pattern");
 
   private final String label;
 
-  Groups(String label) {
+  PulsarTopicsSelector(String label) {
     this.label = label;
   }
 
   @Override
   public String getLabel() {
-    return this.label;
+    return label;
   }
 }
