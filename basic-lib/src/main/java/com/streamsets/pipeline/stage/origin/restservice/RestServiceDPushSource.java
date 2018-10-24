@@ -28,27 +28,26 @@ import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.http.DataFormatChooserValues;
 import com.streamsets.pipeline.lib.httpsource.RawHttpConfigs;
+import com.streamsets.pipeline.lib.microservice.ResponseConfigBean;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 
 import static com.streamsets.pipeline.config.OriginAvroSchemaSource.SOURCE;
 
 @StageDef(
-    version = 1,
+    version = 2,
     label = "REST Service",
     description = "Listens for requests on an HTTP endpoint and send response back",
     icon="api.png",
     execution = {ExecutionMode.STANDALONE},
     recordsByRef = true,
-    onlineHelpRefUrl ="index.html?contextID=task_upp_lgp_q2b"
+    sendsResponse = true,
+    onlineHelpRefUrl ="index.html?contextID=task_upp_lgp_q2b",
+    upgrader = RestServicePushSourceUpgrader.class
 )
 @ConfigGroups(Groups.class)
 @HideConfigs(value = {
     "dataFormatConfig.verifyChecksum",
     "dataFormatConfig.avroSchemaSource",
-    "httpConfigs.tlsConfigBean.trustStoreFilePath",
-    "httpConfigs.tlsConfigBean.trustStoreType",
-    "httpConfigs.tlsConfigBean.trustStorePassword",
-    "httpConfigs.tlsConfigBean.trustStoreAlgorithm",
     "responseConfig.dataGeneratorFormatConfig.jsonMode"
 })
 @GenerateResourceBundle
@@ -85,7 +84,7 @@ public class RestServiceDPushSource extends DPushSource {
   public DataParserFormatConfig dataFormatConfig = new DataParserFormatConfig();
 
   @ConfigDefBean(groups = "HTTP_RESPONSE")
-  public RestServiceResponseConfigBean responseConfig = new RestServiceResponseConfigBean();
+  public ResponseConfigBean responseConfig = new ResponseConfigBean();
 
   @Override
   protected PushSource createPushSource() {

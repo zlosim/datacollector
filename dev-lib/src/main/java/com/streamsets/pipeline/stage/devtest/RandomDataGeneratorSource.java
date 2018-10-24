@@ -19,6 +19,7 @@ import com.codahale.metrics.Timer;
 import com.github.javafaker.Faker;
 import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.Field;
@@ -59,15 +60,16 @@ import java.util.concurrent.Future;
 
 @GenerateResourceBundle
 @StageDef(
-  version = 5,
-  label="Dev Data Generator",
-  description = "Generates records with the specified field names based on the selected data type. For development only.",
-  execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
-  icon= "dev.png",
-  producesEvents = true,
-  upgrader = RandomDataGeneratorSourceUpgrader.class,
-  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
+    version = 5,
+    label="Dev Data Generator",
+    description = "Generates records with the specified field names based on the selected data type. For development only.",
+    execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
+    icon= "dev.png",
+    producesEvents = true,
+    upgrader = RandomDataGeneratorSourceUpgrader.class,
+    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
+@ConfigGroups(value = RandomDataGeneratorGroups.class)
 public class RandomDataGeneratorSource extends BasePushSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(RandomDataGeneratorSource.class);
@@ -80,61 +82,80 @@ public class RandomDataGeneratorSource extends BasePushSource {
 
   private final Random random = new Random();
 
-  @ConfigDef(label = "Fields to Generate", required = false, type = ConfigDef.Type.MODEL, defaultValue="",
-    description="Fields to generate of the indicated type")
+  @ConfigDef(
+      label = "Fields to Generate",
+      required = false,
+      type = ConfigDef.Type.MODEL,
+      defaultValue="",
+      description="Fields to generate of the indicated type",
+      group = "DATA_GENERATOR"
+  )
   @ListBeanModel
   public List<DataGeneratorConfig> dataGenConfigs;
 
-  @ConfigDef(label = "Root Field Type",
-    required = true,
-    type = ConfigDef.Type.MODEL,
-    defaultValue = "MAP",
-    description = "Field Type for root object")
+  @ConfigDef(
+      label = "Root Field Type",
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = "MAP",
+      description = "Field Type for root object",
+      group = "DATA_GENERATOR"
+  )
   @ValueChooserModel(RootTypeChooserValueProvider.class)
   public RootType rootFieldType;
 
   @ConfigDef(
-    required = false,
-    type = ConfigDef.Type.MAP,
-    label = "Header Attributes",
-    description = "Attributes to be put in the generated record header"
+      required = false,
+      type = ConfigDef.Type.MAP,
+      label = "Header Attributes",
+      description = "Attributes to be put in the generated record header",
+      group = "DATA_GENERATOR"
   )
   public Map<String, String> headerAttributes;
 
-  @ConfigDef(required = true, type = ConfigDef.Type.NUMBER,
-    defaultValue = "1000",
-    label = "Delay Between Batches",
-    description = "Milliseconds to wait before sending the next batch",
-    min = 0,
-    max = Integer.MAX_VALUE)
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "1000",
+      label = "Delay Between Batches",
+      description = "Milliseconds to wait before sending the next batch",
+      min = 0,
+      max = Integer.MAX_VALUE,
+      group = "DATA_GENERATOR"
+  )
   public int delay;
 
   @ConfigDef(
-    required = true,
-    type = ConfigDef.Type.NUMBER,
-    defaultValue = "1000",
-    label = "Batch size",
-    description = "Number of records that will be generated for single batch.",
-    min = 1,
-    max = Integer.MAX_VALUE)
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "1000",
+      label = "Batch size",
+      description = "Number of records that will be generated for single batch.",
+      min = 1,
+      max = Integer.MAX_VALUE,
+      group = "DATA_GENERATOR"
+  )
   public int batchSize;
 
   @ConfigDef(
-    required = true,
-    type = ConfigDef.Type.NUMBER,
-    defaultValue = "1",
-    label = "Number of Threads",
-    description = "Number of concurrent threads that will be generating data in parallel.",
-    min = 1,
-    max = Integer.MAX_VALUE)
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "1",
+      label = "Number of Threads",
+      description = "Number of concurrent threads that will be generating data in parallel.",
+      min = 1,
+      max = Integer.MAX_VALUE,
+      group = "DATA_GENERATOR"
+  )
   public int numThreads;
 
   @ConfigDef(
-    required = true,
-    type = ConfigDef.Type.STRING,
-    defaultValue = "generated-event",
-    label = "Event name",
-    description = "Name of event that should be used when generating events."
+      required = true,
+      type = ConfigDef.Type.STRING,
+      defaultValue = "generated-event",
+      label = "Event name",
+      description = "Name of event that should be used when generating events.",
+      group = "DATA_GENERATOR"
   )
   public String eventName;
 
@@ -448,6 +469,9 @@ public class RandomDataGeneratorSource extends BasePushSource {
       case EDUCATOR:
         return Field.create(faker.get().educator().university());
 
+      case EMAIL:
+        return Field.create(faker.get().internet().emailAddress());
+
       case FILE:
         return Field.create(faker.get().file().fileName());
 
@@ -484,6 +508,12 @@ public class RandomDataGeneratorSource extends BasePushSource {
       case POKEMON:
         return Field.create(faker.get().pokemon().name());
 
+      case RACE:
+        return Field.create(faker.get().demographic().race());
+
+      case SEX:
+        return Field.create(faker.get().demographic().sex());
+
       case SHAKESPEARE:
         return Field.create(faker.get().shakespeare().romeoAndJulietQuote());
 
@@ -492,6 +522,9 @@ public class RandomDataGeneratorSource extends BasePushSource {
 
       case SPACE:
         return Field.create(faker.get().space().company());
+
+      case SSN:
+        return Field.create(faker.get().idNumber().ssnValid());
 
       case STOCK:
         return Field.create(faker.get().stock().nsdqSymbol());
@@ -511,10 +544,10 @@ public class RandomDataGeneratorSource extends BasePushSource {
   public Date getRandomDate() {
     GregorianCalendar gc = new GregorianCalendar();
     gc.set(
-      randBetween(1990, 2020),
-      randBetween(1, gc.getActualMaximum(gc.MONTH)),
-      randBetween(1, gc.getActualMaximum(gc.DAY_OF_MONTH)),
-      0, 0, 0
+        randBetween(1990, 2020),
+        randBetween(1, gc.getActualMaximum(gc.MONTH)),
+        randBetween(1, gc.getActualMaximum(gc.DAY_OF_MONTH)),
+        0, 0, 0
     );
     return gc.getTime();
   }
@@ -522,10 +555,10 @@ public class RandomDataGeneratorSource extends BasePushSource {
   public Date getRandomTime() {
     GregorianCalendar gc = new GregorianCalendar();
     gc.set(
-      1970, 0, 1,
-      randBetween(0, gc.getActualMaximum(gc.HOUR_OF_DAY)),
-      randBetween(0, gc.getActualMaximum(gc.MINUTE)),
-      randBetween(0, gc.getActualMaximum(gc.SECOND))
+        1970, 0, 1,
+        randBetween(0, gc.getActualMaximum(gc.HOUR_OF_DAY)),
+        randBetween(0, gc.getActualMaximum(gc.MINUTE)),
+        randBetween(0, gc.getActualMaximum(gc.SECOND))
     );
     return gc.getTime();
   }
@@ -533,12 +566,12 @@ public class RandomDataGeneratorSource extends BasePushSource {
   public Date getRandomDateTime() {
     GregorianCalendar gc = new GregorianCalendar();
     gc.set(
-      randBetween(1990, 2020),
-      randBetween(1, gc.getActualMaximum(gc.MONTH)),
-      randBetween(1, gc.getActualMaximum(gc.DAY_OF_MONTH)),
-      randBetween(0, gc.getActualMaximum(gc.HOUR_OF_DAY)),
-      randBetween(0, gc.getActualMaximum(gc.MINUTE)),
-      randBetween(0, gc.getActualMaximum(gc.SECOND))
+        randBetween(1990, 2020),
+        randBetween(1, gc.getActualMaximum(gc.MONTH)),
+        randBetween(1, gc.getActualMaximum(gc.DAY_OF_MONTH)),
+        randBetween(0, gc.getActualMaximum(gc.HOUR_OF_DAY)),
+        randBetween(0, gc.getActualMaximum(gc.MINUTE)),
+        randBetween(0, gc.getActualMaximum(gc.SECOND))
     );
     return gc.getTime();
   }
@@ -563,36 +596,36 @@ public class RandomDataGeneratorSource extends BasePushSource {
   public static class DataGeneratorConfig {
 
     @ConfigDef(required = true, type = ConfigDef.Type.STRING,
-      label = "Field Name")
+        label = "Field Name")
     public String field;
 
     @ConfigDef(required = true, type = ConfigDef.Type.MODEL,
-      label = "Field Type",
-      defaultValue = "STRING")
+        label = "Field Type",
+        defaultValue = "STRING")
     @ValueChooserModel(TypeChooserValueProvider.class)
     public Type type;
 
     @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
-      defaultValue = "10",
-      label = "Precision",
-      description = "Precision of the generated decimal.",
-      min = 0,
-      dependsOn = "type",
-      triggeredByValue = "DECIMAL"
+        required = true,
+        type = ConfigDef.Type.NUMBER,
+        defaultValue = "10",
+        label = "Precision",
+        description = "Precision of the generated decimal.",
+        min = 0,
+        dependsOn = "type",
+        triggeredByValue = "DECIMAL"
     )
     public long precision;
 
     @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
-      defaultValue = "2",
-      label = "scale",
-      description = "Scale of the generated decimal.",
-      min = 0,
-      dependsOn = "type",
-      triggeredByValue = "DECIMAL"
+        required = true,
+        type = ConfigDef.Type.NUMBER,
+        defaultValue = "2",
+        label = "scale",
+        description = "Scale of the generated decimal.",
+        min = 0,
+        dependsOn = "type",
+        triggeredByValue = "DECIMAL"
     )
     public int scale;
 
@@ -668,6 +701,7 @@ public class RandomDataGeneratorSource extends BasePushSource {
 
     DEMOGRAPHIC,
     EDUCATOR,
+    EMAIL,
     FILE,
     FINANCE,
     FOOD,
@@ -680,9 +714,12 @@ public class RandomDataGeneratorSource extends BasePushSource {
     NAME,
     PHONENUMBER,
     POKEMON,
+    RACE,
+    SEX,
     SHAKESPEARE,
     SLACKEMOJI,
     SPACE,
+    SSN,
     STOCK,
     SUPERHERO,
     TEAM,

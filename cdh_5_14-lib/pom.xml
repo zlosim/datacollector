@@ -23,12 +23,12 @@
     <parent>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-        <version>3.5.0-SNAPSHOT</version>
+        <version>3.6.0-SNAPSHOT</version>
         <relativePath>../stage-lib-parent</relativePath>
     </parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-cdh_5_14-lib</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.6.0-SNAPSHOT</version>
     <description>StreamSets Data Collector CDH 5.14 Lib</description>
     <name>StreamSets Data Collector CDH 5.14 Lib</name>
     <packaging>jar</packaging>
@@ -71,7 +71,7 @@
                     <artifactId>hadoop-common</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
+          </dependency>
 
         <!-- Leave this dependency right here so it takes precedence in the classpath over jersey 1.9 brought in by
         hadoop/hive test classes which wrongfully includes the javax.ws.rs-api classes from an older version of the
@@ -153,10 +153,6 @@
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.netty</groupId>
                     <artifactId>netty-transport-native-epoll</artifactId>
                 </exclusion>
                 <exclusion>
@@ -166,6 +162,17 @@
             </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.streamsets</groupId>
             <artifactId>streamsets-datacollector-mapreduce-protolib</artifactId>
@@ -184,6 +191,37 @@
             <artifactId>streamsets-datacollector-spark-processor-protolib</artifactId>
             <version>${project.version}</version>
             <scope>compile</scope>
+        </dependency>
+
+        <!--
+        Due to a quirk (bug?) in maven-assembly plugin, these Jackson dependencies must be explicitly declared here;
+        they seem to be getting removed by the assembly plugin because they are at compile scope under a test scoped
+        dependency elsewhere (jackson-module-scala_2.11).
+
+        This behavior does not seem to match what dependency:tree shows!
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.module</groupId>
+            <artifactId>jackson-module-paranamer</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
@@ -313,6 +351,10 @@
                     <groupId>com.codahale.metrics</groupId>
                     <artifactId>metrics-jvm</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-all</artifactId>
+                </exclusion>                  
             </exclusions>
         </dependency>
 
@@ -657,6 +699,19 @@
             <version>${kudu.version}</version>
         </dependency>
 
+        <!-- This MUST appear after hdfs-protolib as we override classes from hadoop-common
+        which is a transitive dependency of this one. -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-azure</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-azure-datalake</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+
         <!-- test dependencies-->
         <dependency>
             <groupId>com.streamsets</groupId>
@@ -704,7 +759,6 @@
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-scala_2.11</artifactId>
             <version>${jackson.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>

@@ -211,4 +211,17 @@ public class TestSQLServerCDCSourceUpgrader {
     Assert.assertEquals(exclusion1, tableConfig.get(TABLE_EXCLUSION_CONFIG));
     Assert.assertEquals(initalOffset1, tableConfig.get(TABLE_INITIALOFFSET_CONFIG));
   }
+
+  @Test
+  public void testUpgradeV4toV5() throws StageException {
+    List<Config> configs = new ArrayList<>();
+
+    SQLServerCDCSourceUpgrader sqlServerCDCSourceUpgrader = new SQLServerCDCSourceUpgrader();
+    sqlServerCDCSourceUpgrader.upgrade("a", "b", "c", 4, 5, configs);
+
+    Assert.assertEquals(2, configs.size());
+
+    UpgraderTestUtils.assertExists(configs, SQLServerCDCSourceUpgrader.TXN_WINDOW, "${1 * HOURS}");
+    UpgraderTestUtils.assertExists(configs, SQLServerCDCSourceUpgrader.USE_TABLE, true);
+  }
 }

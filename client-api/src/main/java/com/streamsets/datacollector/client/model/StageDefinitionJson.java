@@ -82,6 +82,7 @@ public class StageDefinitionJson   {
   private Integer outputStreams = null;
   private String outputStreamLabelProviderClass = null;
   private List<String> outputStreamLabels = new ArrayList<String>();
+  private String outputStreamsDrivenByConfig = null;
   private List<ServiceDependencyDefinitionJson> services = null;
   private List<String> hideStage = null;
   private List<ExecutionModesEnum> executionModes = new ArrayList<ExecutionModesEnum>();
@@ -96,7 +97,8 @@ public class StageDefinitionJson   {
   private Boolean resetOffset = null;
   private Boolean producingEvents = null;
   private String onlineHelpRefUrl = null;
-
+  private Boolean sendsResponse = null;
+  private Boolean beta = null;
 
   /**
    **/
@@ -278,6 +280,17 @@ public class StageDefinitionJson   {
   /**
    **/
   @ApiModelProperty(value = "")
+  @JsonProperty("outputStreamsDrivenByConfig")
+  public String getOutputStreamsDrivenByConfig() {
+    return outputStreamsDrivenByConfig;
+  }
+  public void setOutputStreamsDrivenByConfig(String outputStreamsDrivenByConfig) {
+    this.outputStreamsDrivenByConfig = outputStreamsDrivenByConfig;
+  }
+
+  /**
+   **/
+  @ApiModelProperty(value = "")
   @JsonProperty("services")
   public List<ServiceDependencyDefinitionJson> getServices() {
     return services;
@@ -437,5 +450,27 @@ public class StageDefinitionJson   {
   }
   public void setOnlineHelpRefUrl(String onlineHelpRefUrl) {
     this.onlineHelpRefUrl = onlineHelpRefUrl;
+  }
+
+  /**
+   **/
+  @ApiModelProperty(value = "")
+  @JsonProperty("sendsResponse")
+  public Boolean getSendsResponse() {
+    return sendsResponse;
+  }
+  public void setSendsResponse(Boolean sendsResponse) {
+    this.sendsResponse = sendsResponse;
+  }
+
+  /**
+   **/
+  @ApiModelProperty(value = "")
+  @JsonProperty("beta")
+  public Boolean getBeta() {
+    return beta;
+  }
+  public void setBeta(Boolean beta) {
+    this.beta = beta;
   }
 }

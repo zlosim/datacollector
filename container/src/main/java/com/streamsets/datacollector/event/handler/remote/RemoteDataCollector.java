@@ -39,6 +39,7 @@ import com.streamsets.datacollector.execution.Runner;
 import com.streamsets.datacollector.execution.StartPipelineContextBuilder;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.restapi.RestAPIUtils;
 import com.streamsets.datacollector.restapi.bean.SourceOffsetJson;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
 import com.streamsets.datacollector.runner.production.SourceOffset;
@@ -161,6 +162,8 @@ public class RemoteDataCollector implements DataCollector {
       } else {
         ExceptionUtils.throwUndeclared(ex);
       }
+    } finally {
+      MDC.clear();
     }
   }
 
@@ -436,13 +439,7 @@ public class RemoteDataCollector implements DataCollector {
   @Override
   public void storeConfiguration(Map<String, String> newConfiguration) throws IOException {
     RuntimeInfo.storeControlHubConfigs(runtimeInfo, newConfiguration);
-    for(Map.Entry<String, String> entry : newConfiguration.entrySet()) {
-      if(entry.getValue() == null) {
-        configuration.unset(entry.getKey());
-      } else {
-        configuration.set(entry.getKey(), entry.getValue());
-      }
-    }
+    configuration.set(newConfiguration);
   }
 
   private List<WorkerInfo> getWorkers(Collection<CallbackInfo> callbackInfos) {

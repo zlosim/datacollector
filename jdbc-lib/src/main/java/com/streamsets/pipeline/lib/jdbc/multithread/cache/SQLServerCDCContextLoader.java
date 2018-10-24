@@ -32,19 +32,25 @@ public class SQLServerCDCContextLoader extends CacheLoader<TableRuntimeContext, 
   private final int fetchSize;
   private final boolean allowLateTable;
   private final boolean enableSchemaChanges;
+  private final boolean useTable;
+  private int txnWindow;
 
   public SQLServerCDCContextLoader(
       ConnectionManager connectionManager,
       Map<String, String> offsets,
       int fetchSize,
       boolean allowLateTable,
-      boolean enableSchemaChanges
+      boolean enableSchemaChanges,
+      boolean useTable,
+      int txnWindow
   ) {
     this.connectionManager = connectionManager;
     this.offsets = offsets;
     this.fetchSize = fetchSize;
     this.allowLateTable = allowLateTable;
     this.enableSchemaChanges = enableSchemaChanges;
+    this.useTable = useTable;
+    this.txnWindow = txnWindow;
   }
 
   @Override
@@ -53,12 +59,19 @@ public class SQLServerCDCContextLoader extends CacheLoader<TableRuntimeContext, 
 
     final Map<String, String> offset = OffsetQueryUtil.getColumnsToOffsetMapFromOffsetFormat(offsets.get(tableRuntimeContext.getOffsetKey()));
 
+    if (txnWindow > 0 && offset.get(MSQueryUtil.CDC_TXN_WINDOW) != null) {
+      txnWindow = Integer.parseInt(offset.get(MSQueryUtil.CDC_TXN_WINDOW));
+    }
+
     String query = MSQueryUtil.buildCDCQuery(
         offset,
         tableContext.getQualifiedName(),
         tableContext.getOffsetColumnToStartOffset(),
         allowLateTable,
-        enableSchemaChanges
+        enableSchemaChanges,
+        fetchSize,
+        useTable,
+        txnWindow
     );
 
 
@@ -69,9 +82,6 @@ public class SQLServerCDCContextLoader extends CacheLoader<TableRuntimeContext, 
             new ArrayList<>(),
             fetchSize
         );
-
-    // update last offset
-    tableContext.clearStartOffset();
 
     return tableReadContext;
   }

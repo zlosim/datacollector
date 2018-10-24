@@ -27,10 +27,7 @@ import com.streamsets.pipeline.lib.io.fileref.LocalFileRef;
 import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
-import com.streamsts.pipeline.stage.processor.transformer.Errors;
-import com.streamsts.pipeline.stage.processor.transformer.JobConfig;
-import com.streamsts.pipeline.stage.processor.transformer.WholeFileTransformerDProcessor;
-import org.junit.AfterClass;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -113,10 +110,8 @@ public class TestWholeFileTransformerProcessor {
         .build();
 
     Record record = RecordCreator.create();
-    Map<String, Object> metadata = new HashMap<>();
-    metadata.put("size", 0);
-    metadata.put("file", 0);
-    record.getHeader().setUserAttributes(metadata);
+    record.getHeader().setAttribute("size", "0");
+    record.getHeader().setAttribute("file", "0");
 
     ClassLoader classLoader = getClass().getClassLoader();
     File file = new File(classLoader.getResource("file/not-valid-avro-file.avro").getFile());
@@ -159,10 +154,8 @@ public class TestWholeFileTransformerProcessor {
 
     Record record = createRecord(notValidAvroFile);
     record.set(FileRefUtil.FILE_INFO_FIELD_PATH, Field.create(ImmutableMap.of("size", Field.create(10))));
-    Map<String, Object> metadata = new HashMap<>();
-    metadata.put("size", 0);
-    metadata.put("file", "test");
-    record.getHeader().setUserAttributes(metadata);
+    record.getHeader().setAttribute("size", "0");
+    record.getHeader().setAttribute("file", "test");
 
     try {
       runner.runInit();
@@ -190,11 +183,9 @@ public class TestWholeFileTransformerProcessor {
         .build();
 
     Record record = createRecord(notValidAvroFile);
-    Map<String, Object> metadata = new HashMap<>();
-    metadata.put("size", 0);
-    metadata.put("file", "./test");
-    metadata.put("filename", "test");
-    record.getHeader().setUserAttributes(metadata);
+    record.getHeader().setAttribute("size", "0");
+    record.getHeader().setAttribute("file", "./test");
+    record.getHeader().setAttribute("filename", "test");
 
     try {
       runner.runInit();
@@ -257,6 +248,32 @@ public class TestWholeFileTransformerProcessor {
       List<Record> errorRecords = runner.getErrorRecords();
       Assert.assertEquals(1, errorRecords.size());
       Assert.assertEquals(Errors.CONVERT_11.getCode(), errorRecords.get(0).getHeader().getErrorCode());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testTempParquetSubDirectoryPath() throws Exception {
+    final String tempSubDir = rootPath + "/subdir1/subsubdir1" + "/.parquet";
+    WholeFileTransformerProcessor wholeFileTransofrmer  = new TestWholeFileTransformerProcessorBuilder()
+        .tempDir(tempSubDir)
+        .build();
+
+    final Record record = createRecord(validAvroFile);
+    final String sourceFileName = "testFile";
+
+    ProcessorRunner runner = new ProcessorRunner.Builder(WholeFileTransformerDProcessor.class, wholeFileTransofrmer)
+        .addOutputLane("a")
+        .setOnRecordError(OnRecordError.TO_ERROR)
+        .build();
+
+    try {
+      runner.runInit();
+
+      Path tempFilePath = wholeFileTransofrmer.getAndValidateTempFilePath(record, sourceFileName);
+      Assert.assertEquals(tempSubDir, tempFilePath.getParent().toString());
+      Assert.assertTrue(Files.exists(tempFilePath.getParent()));
     } finally {
       runner.runDestroy();
     }

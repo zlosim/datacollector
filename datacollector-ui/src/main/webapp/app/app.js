@@ -20,18 +20,7 @@ angular.module('dataCollectorApp')
     $httpProvider, AnalyticsProvider
   ) {
     $locationProvider.html5Mode({enabled: true, requireBase: false});
-    $routeProvider.otherwise({
-      templateUrl: 'app/home/home.tpl.html',
-      controller: 'HomeController',
-      resolve: {
-        myVar: function(authService) {
-          return authService.init();
-        }
-      },
-      data: {
-        authorizedRoles: ['admin', 'creator', 'manager', 'guest']
-      }
-    });
+    $routeProvider.otherwise({redirectTo: '/'});
 
     // Default Timezone (local storage)
     $provide.decorator('dateFilter', ['$delegate', '$rootScope', function ($delegate, $rootScope) {
@@ -509,6 +498,22 @@ angular.module('dataCollectorApp')
           size: 'lg',
           backdrop: 'static'
         });
+      },
+
+      openEdgeTutorialPage: function() {
+        window.open('https://streamsets.com/documentation/datacollector/latest/help/datacollector/UserGuide/Edge_Mode/EdgePipelines_title.html', '_blank');
+      },
+
+      openMicroserviceTutorialPage: function() {
+        window.open('https://streamsets.com/blog/create-microservice-pipelines-streamsets-data-collector-tutorial/', '_blank');
+      },
+
+      openControlHubTutorialPage: function() {
+        window.open('https://streamsets.com/documentation/controlhub/latest/help/controlhub/UserGuide/GettingStarted/GettingStarted_title.html', '_blank');
+      },
+
+      openGithubTutorial: function() {
+        window.open('https://github.com/streamsets/tutorials', '_blank');
       }
     };
 

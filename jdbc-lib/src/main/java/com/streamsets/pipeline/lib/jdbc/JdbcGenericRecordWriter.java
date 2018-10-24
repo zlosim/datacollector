@@ -32,7 +32,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,38 +53,7 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
    * @param tableName the name of the table to write to
    * @param rollbackOnError whether to attempt rollback of failed queries
    * @param customMappings any custom mappings the user provided
-   * @param defaultOp Default Opertaion
-   * @param unsupportedAction What action to take if operation is invalid
-   * @param recordReader JDBCRecordReader to obtain data from incoming record
-   * @throws StageException
-   */
-  public JdbcGenericRecordWriter(
-      String connectionString,
-      DataSource dataSource,
-      String schema,
-      String tableName,
-      boolean rollbackOnError,
-      List<JdbcFieldColumnParamMapping> customMappings,
-      int maxStmtCache,
-      JDBCOperationType defaultOp,
-      UnsupportedOperationAction unsupportedAction,
-      JdbcRecordReader recordReader,
-      boolean caseSensitive
-  ) throws StageException {
-    super(connectionString, dataSource, schema, tableName, rollbackOnError,
-        customMappings, defaultOp, unsupportedAction, recordReader, null, caseSensitive);
-    this.maxPrepStmtCache = maxStmtCache;
-    this.caseSensitive = caseSensitive;
-  }
-
-  /**
-   * Class constructor
-   * @param connectionString database connection string
-   * @param dataSource a JDBC {@link javax.sql.DataSource} to get a connection from
-   * @param tableName the name of the table to write to
-   * @param rollbackOnError whether to attempt rollback of failed queries
-   * @param customMappings any custom mappings the user provided
-   * @param defaultOp Default Opertaion
+   * @param defaultOpCode default operation code
    * @param unsupportedAction What action to take if operation is invalid
    * @param generatedColumnMappings mappings from field names to generated column names
    * @param recordReader JDBCRecordReader to obtain data from incoming record
@@ -97,50 +67,44 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
       boolean rollbackOnError,
       List<JdbcFieldColumnParamMapping> customMappings,
       int maxStmtCache,
-      JDBCOperationType defaultOp,
+      int defaultOpCode,
       UnsupportedOperationAction unsupportedAction,
       List<JdbcFieldColumnMapping> generatedColumnMappings,
       JdbcRecordReader recordReader,
       boolean caseSensitive
   ) throws StageException {
     super(connectionString, dataSource, schema, tableName, rollbackOnError,
-        customMappings, defaultOp, unsupportedAction, recordReader, generatedColumnMappings, caseSensitive);
+        customMappings, defaultOpCode, unsupportedAction, recordReader, generatedColumnMappings, caseSensitive);
     this.maxPrepStmtCache = maxStmtCache;
     this.caseSensitive = caseSensitive;
   }
 
   @Override
-  public List<OnRecordErrorException> writePerRecord(Collection<Record> batch) throws StageException {
+  public List<OnRecordErrorException> writePerRecord(Iterator<Record> recordIterator) throws StageException {
     final boolean perRecord = true;
-    return write(batch, perRecord);
+    return write(recordIterator, perRecord);
   }
 
-  /** {@inheritDoc} */
-  @SuppressWarnings("unchecked")
   @Override
-  public List<OnRecordErrorException> writeBatch(Collection<Record> batch) throws StageException {
+  public List<OnRecordErrorException> writeBatch(Iterator<Record> recordIterator) throws StageException {
     final boolean perRecord = false;
-    return write(batch, perRecord);
+    return write(recordIterator, perRecord);
   }
 
   /**
    * write the batch of the records if it is not perRecord
    * otherwise, execute one statement per record
-   * @param batch
+   * @param recordIterator
    * @param perRecord
    * @return List<OnRecordErrorException>
    * @throws StageException
    */
-  private List<OnRecordErrorException> write(Collection<Record> batch, boolean perRecord) throws StageException {
+  private List<OnRecordErrorException> write(Iterator<Record> recordIterator, boolean perRecord) throws StageException {
     List<OnRecordErrorException> errorRecords = new LinkedList<>();
-    Connection connection = null;
     PreparedStatementMap statementsForBatch = null;
-    List<PreparedStatement> statementsToExecute = new ArrayList<>();
     // Map that keeps list of records that has been used for each statement -- for error handling
-    Map<PreparedStatement, List<Record>> statementsToRecords  = new HashMap<>();
-    try {
-      connection = getDataSource().getConnection();
-
+    Map<PreparedStatement, List<Record>> statementsToRecords  = new LinkedHashMap<>();
+    try (Connection connection = getDataSource().getConnection()) {
       statementsForBatch = new PreparedStatementMap(
           connection,
           getTableName(),
@@ -150,9 +114,10 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
           caseSensitive
       );
 
-      for (Record record : batch) {
+      while (recordIterator.hasNext()) {
+        Record record = recordIterator.next();
         // First, find the operation code
-        int opCode = recordReader.getOperationFromRecord(record, defaultOp, unsupportedAction, errorRecords);
+        int opCode = getOperationCode(record, errorRecords);
         if (opCode <= 0) {
           continue;
         }
@@ -185,10 +150,6 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
 
           if (!perRecord) {
             statement.addBatch();
-
-            if (!statementsToExecute.contains(statement)) {
-              statementsToExecute.add(statement);
-            }
           } else {
             statement.executeUpdate();
 
@@ -204,18 +165,20 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
       }
 
       if (!perRecord) {
-        for (PreparedStatement statement : statementsToExecute) {
+        for (Map.Entry<PreparedStatement, List<Record>> entry : statementsToRecords.entrySet()) {
+          PreparedStatement statement = entry.getKey();
+          List<Record> statementRecords = entry.getValue();
           try {
             statement.executeBatch();
           } catch(SQLException e){
             if (getRollbackOnError()) {
               connection.rollback();
             }
-            handleBatchUpdateException(statementsToRecords.get(statement), e, errorRecords);
+            handleBatchUpdateException(statementRecords, e, errorRecords);
           }
 
           if (getGeneratedColumnMappings() != null) {
-            writeGeneratedColumns(statement, batch.iterator(), errorRecords);
+            writeGeneratedColumns(statement, statementRecords.iterator(), errorRecords);
           }
         }
       }
@@ -223,14 +186,6 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
       connection.commit();
     } catch (SQLException e) {
       handleSqlException(e);
-    } finally {
-      if (connection != null) {
-        try {
-          connection.close();
-        } catch (SQLException e) {
-          handleSqlException(e);
-        }
-      }
     }
     return errorRecords;
   }

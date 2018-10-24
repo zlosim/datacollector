@@ -470,8 +470,8 @@ angular
       /**
        * Returns true if pipeline is Edge pipeline
        */
-      isEdgePipeline: function() {
-        return $scope.executionMode === 'EDGE'
+      isEdgePipeline: function () {
+        return $scope.executionMode === 'EDGE';
       },
 
       publishToEdge: function () {
@@ -487,6 +487,18 @@ angular
               $rootScope.common.errors = [res.data];
             }
           );
+      },
+
+      viewPipelineLog: function () {
+        if ($scope.executionMode === 'EDGE') {
+          $rootScope.common.infoList = [{
+            message: 'View edge pipeline logs in SDC_EDGE_HOME/log/edge.log file'
+          }];
+        } else {
+          $location.path(
+            '/collector/logs/' + $scope.pipelineConfig.info.title + '/' + $scope.pipelineConfig.info.pipelineId
+          );
+        }
       }
     });
 

@@ -29,7 +29,9 @@ import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.el.RuleELRegistry;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FieldVisitor;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import org.apache.commons.collections.CollectionUtils;
@@ -306,19 +308,20 @@ public class RuleDefinitionValidator {
             return null;
           }
 
-          @Override
+          /** To be removed */
           public Map<String, Object> getAllAttributes() {
             return null;
           }
 
-          @Override
+          /** To be removed */
           public Map<String, Object> overrideUserAndSystemAttributes(Map<String, Object> newAttrs) {
             return null;
           }
-          @Override
+
+          /** To be removed */
           public Map<String, Object> getUserAttributes() {return null;}
 
-          @Override
+          /** To be removed */
           public Map<String, Object> setUserAttributes(Map<String, Object> newAttributes) {return null;}
 
         };
@@ -369,6 +372,11 @@ public class RuleDefinitionValidator {
       public Field set(String fieldPath, Field newField) {
         return null;
       }
+
+      @Override
+      public void forEachField(FieldVisitor visitor) throws StageException {
+      }
+
     };
 
     RecordEL.setRecordInContext(variables, record);

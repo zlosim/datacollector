@@ -41,10 +41,16 @@ public final class CommonSourceConfigBean {
 
   @VisibleForTesting
   public CommonSourceConfigBean(String queriesPerSecond, int maxBatchSize, int maxClobSize, int maxBlobSize) {
+    this(queriesPerSecond, maxBatchSize, maxClobSize, maxBlobSize, false);
+  }
+
+  @VisibleForTesting
+  public CommonSourceConfigBean(String queriesPerSecond, int maxBatchSize, int maxClobSize, int maxBlobSize, boolean convertTimestampToString) {
     this.queriesPerSecond = queriesPerSecond;
     this.maxBatchSize = maxBatchSize;
     this.maxClobSize = maxClobSize;
     this.maxBlobSize = maxBlobSize;
+    this.convertTimestampToString = convertTimestampToString;
     this.numSQLErrorRetries = 0;
   }
 
@@ -141,6 +147,18 @@ public final class CommonSourceConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.NUMBER,
+      label = "Maximum Transaction Length",
+      description = "Time window to look for changes within a transaction before commit (in seconds)",
+      displayPosition = 173,
+      group = "JDBC",
+      elDefs = TimeEL.class,
+      defaultValue = "${1 * HOURS}"
+  )
+  public int txnWindow;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
       defaultValue = "0",
       label = "No-more-data Event Generation Delay (seconds)",
       description = "Number of seconds to delay when all rows have been processed, before generating the no-more-data" +
@@ -150,6 +168,17 @@ public final class CommonSourceConfigBean {
       group = "JDBC"
   )
   public int noMoreDataEventDelay;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Convert Timestamp To String",
+      description = "Rather then representing timestamps as Data Collector DATETIME type, use String.",
+      displayPosition = 210,
+      group = "JDBC"
+  )
+  public boolean convertTimestampToString;
 
   private static final String MAX_BATCH_SIZE = "maxBatchSize";
   private static final String MAX_CLOB_SIZE = "maxClobSize";

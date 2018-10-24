@@ -24,7 +24,7 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.loadNpmTasks('grunt-contrib-watch');
-  grunt.loadNpmTasks('grunt-contrib-uglify');
+  grunt.loadNpmTasks('grunt-contrib-uglify-es');
   grunt.loadNpmTasks('grunt-contrib-less');
   grunt.loadNpmTasks('grunt-karma');
   grunt.loadNpmTasks('grunt-ng-annotate');
@@ -40,7 +40,7 @@ module.exports = function(grunt) {
     build_dir: 'target/dist',
     target_dir: 'target',
     base_dir: 'src/main/webapp/',
-    common_base_dir: '../common-ui/src/main/webapp/',
+    common_base_dir: 'src/main/webapp/',
     docs_dir: '../docs/generated',
 
     /**
@@ -436,7 +436,9 @@ module.exports = function(grunt) {
         boss: true,
         eqnull: true,
         esnext: true,
-        debug: true  //TODO: Set this flag only for development mode.
+        debug: false,
+        loopfunc: true,
+        reporterOutput: ""
       },
       globals: {}
     },
@@ -576,7 +578,7 @@ module.exports = function(grunt) {
           '<%= base_dir %>app/**/*.js',
           '<%= common_base_dir %>common/**/*.js'
         ],
-        tasks: [ 'jshint:src', 'karma:unit:run', 'copy:build_appjs', 'copy:build_common_appjs', 'index:build' ]
+        tasks: [ 'jshint:src', 'copy:build_appjs', 'copy:build_common_appjs', 'index:build' ]
       },
 
       /**
@@ -632,7 +634,7 @@ module.exports = function(grunt) {
         files: [
           '<%= app_files.jsunit %>'
         ],
-        tasks: [ 'jshint:test', 'karma:unit:run' ],
+        tasks: [ 'jshint:test' ],
         options: {
           livereload: false
         }
@@ -651,26 +653,26 @@ module.exports = function(grunt) {
    * before watching for changes.
    */
   grunt.renameTask( 'watch', 'delta' );
-  grunt.registerTask( 'watch', [ 'build', 'delta' ] );
+  grunt.registerTask( 'watch', [ 'build-dev', 'delta' ] );
 
   /**
    * The default task is to build and compile.
    */
-  grunt.registerTask( 'default', [ 'build', 'compile' ] );
-  //grunt.registerTask( 'default', [ 'build' ] );
+  grunt.registerTask( 'default', [ 'build' ] );
+
+  grunt.registerTask( 'build', [ 'build-dev', 'compile' ] );
 
   grunt.registerTask( 'test', []);
 
   /**
    * The `build` task gets your app ready to run for development and testing.
    */
-  grunt.registerTask( 'build', [
+  grunt.registerTask( 'build-dev', [
     'clean:build', 'html2js', 'jshint', 'less:build', 'concat:build_css',
     'copy:build_app_assets', 'copy:build_appjs',
     'copy:build_common_app_assets', 'copy:build_common_appjs',
     'copy:build_vendor_assets', 'copy:build_vendor_fonts',
-    'copy:build_vendorjs', 'copy:build_docs', 'index:build', 'login:build', 'karmaconfig'
-    //,'karma:continuous'
+    'copy:build_vendorjs', 'copy:build_docs', 'index:build', 'login:build'
   ]);
 
   /**

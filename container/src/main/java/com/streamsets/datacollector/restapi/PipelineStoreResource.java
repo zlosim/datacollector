@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.restapi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -103,6 +104,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -1300,6 +1302,87 @@ public class PipelineStoreResource {
         type(MediaType.APPLICATION_JSON).entity(pipelineEnvelope).build();
   }
 
+
+  @Path("/pipeline/{pipelineId}/importFromURL")
+  @POST
+  @ApiOperation(value = "Import Pipeline Configuration & Rules from HTTP URL", response = PipelineEnvelopeJson.class,
+      authorizations = @Authorization(value = "basic"))
+  @Produces(MediaType.APPLICATION_JSON)
+  @RolesAllowed({
+      AuthzRole.CREATOR, AuthzRole.ADMIN, AuthzRole.CREATOR_REMOTE, AuthzRole.ADMIN_REMOTE
+  })
+  public Response importPipelineFromURL(
+      @PathParam("pipelineId") String name,
+      @QueryParam("rev") @DefaultValue("0") String rev,
+      @QueryParam("pipelineHttpUrl") String pipelineHttpUrl,
+      @QueryParam("overwrite") @DefaultValue("false") boolean overwrite,
+      @QueryParam("autoGeneratePipelineId") @DefaultValue("false") boolean autoGeneratePipelineId,
+      @QueryParam("draft") @DefaultValue("false") boolean draft,
+      @QueryParam("includeLibraryDefinitions") @DefaultValue("true") boolean includeLibraryDefinitions
+  ) throws PipelineException, IOException {
+    RestAPIUtils.injectPipelineInMDC("*");
+    PipelineEnvelopeJson pipelineEnvelope = getPipelineEnvelopeFromFromUrl(pipelineHttpUrl);
+    pipelineEnvelope = importPipelineEnvelope(
+        name,
+        rev,
+        overwrite,
+        autoGeneratePipelineId,
+        pipelineEnvelope,
+        draft,
+        includeLibraryDefinitions
+    );
+    return Response.ok().
+        type(MediaType.APPLICATION_JSON).entity(pipelineEnvelope).build();
+  }
+
+  private PipelineEnvelopeJson getPipelineEnvelopeFromFromUrl(String pipelineHttpUrl) throws IOException {
+    Response response = null;
+    PipelineEnvelopeJson pipelineEnvelope = null;
+    try {
+      response = ClientBuilder.newClient()
+          .target(pipelineHttpUrl)
+          .request()
+          .get();
+      if (response.getStatus() != Response.Status.OK.getStatusCode()) {
+        throw new RuntimeException(Utils.format("Failed to fetch pipeline from URL '{}' status code '{}': {}",
+            pipelineHttpUrl,
+            response.getStatus(),
+            response.readEntity(String.class)
+        ));
+      }
+      String responseString = response.readEntity(String.class);
+
+      // Support importing both pipeline config json or pipeline envelope json (pipeline config + rules)
+      if (responseString != null && responseString.contains("\"pipelineConfig\"") &&
+          responseString.contains("\"pipelineRules\"")) {
+        pipelineEnvelope = ObjectMapperFactory.get().readValue(responseString, PipelineEnvelopeJson.class);
+      } else {
+        pipelineEnvelope = new PipelineEnvelopeJson();
+        PipelineConfigurationJson pipelineConfigurationJson = ObjectMapperFactory.get().readValue(
+            responseString,
+            PipelineConfigurationJson.class
+        );
+        pipelineEnvelope.setPipelineConfig(pipelineConfigurationJson);
+        RuleDefinitions ruleDefinitions = new RuleDefinitions(
+            PipelineStoreTask.RULE_DEFINITIONS_SCHEMA_VERSION,
+            RuleDefinitionsConfigBean.VERSION,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            null,
+            stageLibrary.getPipelineRules().getPipelineRulesDefaultConfigs()
+        );
+        pipelineEnvelope.setPipelineRules(BeanHelper.wrapRuleDefinitions(ruleDefinitions));
+      }
+    } finally {
+      if (response != null) {
+        response.close();
+      }
+    }
+    return pipelineEnvelope;
+  }
+
   private PipelineEnvelopeJson importPipelineEnvelope(
       String name,
       String rev,
@@ -1321,7 +1404,10 @@ public class PipelineStoreResource {
     PipelineConfiguration newPipelineConfig;
     RuleDefinitions newRuleDefinitions;
 
-    String label = name;
+    String label = pipelineConfig.getTitle();
+    if(Strings.isNullOrEmpty(label)) {
+      label = name;
+    }
 
     if (overwrite) {
       if (store.hasPipeline(name)) {
@@ -1342,7 +1428,7 @@ public class PipelineStoreResource {
     if (!draft) {
       newRuleDefinitions = store.retrieveRules(name, rev);
       ruleDefinitions.setUuid(newRuleDefinitions.getUuid());
-
+      pipelineConfig.setTitle(label);
       pipelineConfig.setUuid(newPipelineConfig.getUuid());
       pipelineConfig.setPipelineId(newPipelineConfig.getPipelineId());
       pipelineConfig = store.save(user, name, rev, pipelineConfig.getDescription(), pipelineConfig);

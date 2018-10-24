@@ -24,6 +24,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.el.JobEL;
 import com.streamsets.datacollector.el.PipelineEL;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
@@ -251,6 +252,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
         originPipe.getStage().getContext().getUserContext(),
         System.currentTimeMillis()
     );
+    JobEL.setConstantsInContext(null);
 
     return batchContext;
   }
@@ -293,6 +295,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
       return  false;
     } finally {
       PipelineEL.unsetConstantsInContext();
+      JobEL.unsetConstantsInContext();
     }
   }
 
@@ -389,13 +392,20 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     long start = System.currentTimeMillis();
 
     // Destroy origin on it's own
-    originPipe.destroy(new FullPipeBatch(null,null, batchSize, true));
+    FullPipeBatch originBatch = new FullPipeBatch(null, null, batchSize, false);
+    originBatch.skipStage(originPipe);
+    originPipe.destroy(originBatch);
 
     // And destroy each pipeline instance separately
     for(PipeRunner pipeRunner: pipeRunners) {
       final FullPipeBatch pipeBatch = new FullPipeBatch(null,null, batchSize, true);
       pipeBatch.skipStage(originPipe);
-      pipeRunner.executeBatch(null, null, start, p -> p.destroy(pipeBatch));
+      pipeRunner.executeBatch(null, null, start, p -> {
+        if(p instanceof StagePipe) {
+          pipeBatch.startStage((StagePipe)p);
+        }
+        p.destroy(pipeBatch);
+      });
     }
   }
 

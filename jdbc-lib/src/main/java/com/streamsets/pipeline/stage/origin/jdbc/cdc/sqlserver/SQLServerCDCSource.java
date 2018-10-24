@@ -118,10 +118,12 @@ public class SQLServerCDCSource extends AbstractTableJdbcSource {
   ) {
     return new SQLServerCDCContextLoader(
         connectionManager,
-        offsets,
+        getOffsets(),
         cdcTableJdbcConfigBean.fetchSize,
         commonSourceConfigBean.allowLateTable,
-        commonSourceConfigBean.enableSchemaChanges
+        commonSourceConfigBean.enableSchemaChanges,
+        cdcTableJdbcConfigBean.useTable,
+        commonSourceConfigBean.txnWindow
     );
   }
 }

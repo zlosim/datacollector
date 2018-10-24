@@ -117,13 +117,14 @@ public class TestGenericRecordWriter {
         false, //rollback set to false
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(record);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -165,13 +166,14 @@ public class TestGenericRecordWriter {
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(insertRecord, updateRecord);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -214,13 +216,14 @@ public class TestGenericRecordWriter {
         false, //rollback false
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(insertRecord, deleteRecord);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -264,13 +267,14 @@ public class TestGenericRecordWriter {
         false,
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(insertRecord, updateRecord);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -316,13 +320,14 @@ public class TestGenericRecordWriter {
         false,
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(insertRecord, deleteRecord);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -353,8 +358,9 @@ public class TestGenericRecordWriter {
         false, //rollback
         columnMapping,
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
@@ -396,13 +402,14 @@ public class TestGenericRecordWriter {
         false, //rollback set to false
         new LinkedList<>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(record);
-    final List<OnRecordErrorException> errors = writer.writeBatch(batch);
+    final List<OnRecordErrorException> errors = writer.writeBatch(batch.iterator());
     assertTrue(errors.isEmpty());
   }
 

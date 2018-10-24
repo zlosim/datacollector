@@ -41,16 +41,17 @@ public class BasePulsarConfig {
       required = true,
       type = ConfigDef.Type.STRING,
       label = "Pulsar URL",
-      description = "Pulsar service URL. Example: http://localhost:8080 or pulsar://localhost:6650",
+      description = "Pulsar service URL. For example: pulsar://localhost:6650 or http://localhost:8080. If TLS is " +
+          "enabled, the URL must use pulsar+ssl protocol. For example: pulsar+ssl://localhost:6651",
       displayPosition = 10,
-      defaultValue = "http://localhost:8080",
+      defaultValue = "pulsar://localhost:6650",
       group = "PULSAR")
   public String serviceURL;
 
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.NUMBER,
-      label = "Pulsar Keep Alive Interval (ms)",
+      label = "Keep Alive Interval (ms)",
       description = "How often to check whether the connections are still alive",
       displayPosition = 30,
       defaultValue = "30000",
@@ -62,9 +63,9 @@ public class BasePulsarConfig {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.NUMBER,
-      label = "Pulsar Operation Timeout (ms)",
-      description = "Pulsar Producer-create, Consumer-subscribe and Consumer-unsubscribe operations will be retried " +
-          "until this interval, after which the operation will be marked as failed",
+      label = "Operation Timeout (ms)",
+      description = "Pulsar operations will be retried until this interval, after which the operation will be marked " +
+          "as failed",
       displayPosition = 40,
       defaultValue = "30000",
       min = 0,

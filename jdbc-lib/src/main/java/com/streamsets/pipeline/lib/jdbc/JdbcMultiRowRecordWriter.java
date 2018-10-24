@@ -33,7 +33,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -64,36 +64,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
    * @param rollbackOnError whether to attempt rollback of failed queries
    * @param customMappings any custom mappings the user provided
    * @param maxPrepStmtParameters max number of parameters to include in each INSERT statement
-   * @throws StageException
-   */
-  public JdbcMultiRowRecordWriter(
-      String connectionString,
-      DataSource dataSource,
-      String schema,
-      String tableName,
-      boolean rollbackOnError,
-      List<JdbcFieldColumnParamMapping> customMappings,
-      int maxPrepStmtParameters,
-      JDBCOperationType defaultOp,
-      UnsupportedOperationAction unsupportedAction,
-      JdbcRecordReader recordReader,
-      boolean caseSensitive
-  ) throws StageException {
-    super(connectionString, dataSource, schema, tableName, rollbackOnError, customMappings, defaultOp, unsupportedAction, recordReader, caseSensitive);
-    this.maxPrepStmtParameters = maxPrepStmtParameters == UNLIMITED_PARAMETERS ? Integer.MAX_VALUE :
-        maxPrepStmtParameters;
-    this.caseSensitive = caseSensitive;
-  }
-
-  /**
-   * Class constructor
-   * @param connectionString database connection string
-   * @param dataSource a JDBC {@link DataSource} to get a connection from
-   * @param tableName the name of the table to write to
-   * @param rollbackOnError whether to attempt rollback of failed queries
-   * @param customMappings any custom mappings the user provided
-   * @param maxPrepStmtParameters max number of parameters to include in each INSERT statement
-   * @param defaultOp Default Opertaion
+   * @param defaultOpCode default operation code
    * @param unsupportedAction What action to take if operation is invalid
    * @param generatedColumnMappings mappings from field names to generated column names
    * @throws StageException
@@ -106,42 +77,27 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
       boolean rollbackOnError,
       List<JdbcFieldColumnParamMapping> customMappings,
       int maxPrepStmtParameters,
-      JDBCOperationType defaultOp,
+      int defaultOpCode,
       UnsupportedOperationAction unsupportedAction,
       List<JdbcFieldColumnMapping> generatedColumnMappings,
       JdbcRecordReader recordReader,
       boolean caseSensitive
   ) throws StageException {
     super(connectionString, dataSource, schema, tableName, rollbackOnError, customMappings,
-        defaultOp, unsupportedAction, recordReader, generatedColumnMappings, caseSensitive);
+        defaultOpCode, unsupportedAction, recordReader, generatedColumnMappings, caseSensitive);
     this.maxPrepStmtParameters = maxPrepStmtParameters == UNLIMITED_PARAMETERS ? Integer.MAX_VALUE :
         maxPrepStmtParameters;
     this.caseSensitive = caseSensitive;
   }
 
   @Override
-  public List<OnRecordErrorException> writePerRecord(Collection<Record> batch) throws StageException {
+  public List<OnRecordErrorException> writePerRecord(Iterator<Record> recordIterator) throws StageException {
     throw new UnsupportedOperationException("Multiple Row Record Writer operation is not supported to SQL Server");
   }
 
 
-  /** {@inheritDoc} */
-  @SuppressWarnings("unchecked")
   @Override
-  public List<OnRecordErrorException> writeBatch(Collection<Record> batch) throws StageException {
-    final boolean perRecord = false;
-    return write(batch, perRecord);
-  }
-
-  /**
-   * write the batch of the records if it is not perRecord
-   * otherwise, execute one statement of multiple rows of the same operation in the same table
-   * @param batch
-   * @param perRecord
-   * @return List<OnRecordErrorException>
-   * @throws StageException
-   */
-  private List<OnRecordErrorException> write(Collection<Record> batch, boolean perRecord) throws StageException {
+  public List<OnRecordErrorException> writeBatch(Iterator<Record> recordIterator) throws StageException {
     List<OnRecordErrorException> errorRecords = new LinkedList<>();
     Connection connection = null;
     try {
@@ -156,8 +112,9 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
       HashCode prevColumnHash = null;
       // put all the records with the same operation in a queue to create a multi-row query
       LinkedList<Record> queue = new LinkedList<>();
-      for (Record record : batch) {
-        int opCode = recordReader.getOperationFromRecord(record, defaultOp, unsupportedAction, errorRecords);
+      while (recordIterator.hasNext()) {
+        Record record = recordIterator.next();
+        int opCode = getOperationCode(record, errorRecords);
 
         // Need to consider the number of columns in query. If different, process saved records in queue.
         HashCode columnHash = getColumnHash(record, opCode);
@@ -176,7 +133,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
         }
 
         // Process enqueued records.
-        processQueue(queue, errorRecords, connection, maxRowsPerBatch, prevOpCode, perRecord);
+        processQueue(queue, errorRecords, connection, maxRowsPerBatch, prevOpCode);
 
         if (!queue.isEmpty()) {
           throw new IllegalStateException("Queue processed, but was not empty upon completion.");
@@ -189,7 +146,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
 
 
       // Check if any records are left in queue unprocessed
-      processQueue(queue, errorRecords, connection, maxRowsPerBatch, prevOpCode, perRecord);
+      processQueue(queue, errorRecords, connection, maxRowsPerBatch, prevOpCode);
       connection.commit();
     } catch (SQLException e) {
       handleSqlException(e);
@@ -224,8 +181,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
       List<OnRecordErrorException> errorRecords,
       Connection connection,
       int maxRowsPerBatch,
-      int opCode,
-      boolean perRecord
+      int opCode
   ) throws StageException {
     if (queue.isEmpty()) {
       return;
@@ -277,7 +233,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
         ++rowCount;
         if (rowCount == maxRowsPerBatch) {
           // time to execute the current batch
-          processBatch(removed, errorRecords, statement, connection, perRecord);
+          processBatch(removed, errorRecords, statement, connection);
           // reset our counters
           rowCount = 0;
           paramIdx = 1;
@@ -314,7 +270,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
             paramIdx = setPrimaryKeys(paramIdx, r, statement, opCode);
           }
         }
-        processBatch(removed, errorRecords, statement, connection, perRecord);
+        processBatch(removed, errorRecords, statement, connection);
       } catch (SQLException e) {
         handleSqlException(e);
       }
@@ -325,20 +281,13 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
       LinkedList<Record> queue,
       List<OnRecordErrorException> errorRecords,
       PreparedStatement statement,
-      Connection connection,
-      boolean perRecord
-      ) throws SQLException
-  {
+      Connection connection
+  ) throws SQLException {
     try {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Executing query: {}", statement.toString());
       }
-      if (!perRecord) {
-        statement.addBatch();
-        statement.executeBatch();
-      } else {
-        statement.executeUpdate();
-      }
+      statement.executeUpdate();
     } catch (SQLException ex) {
       if (getRollbackOnError()) {
         LOG.debug("Error due to {}. Rollback the batch.", ex.getMessage());

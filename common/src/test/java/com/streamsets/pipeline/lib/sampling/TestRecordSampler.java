@@ -17,8 +17,10 @@ package com.streamsets.pipeline.lib.sampling;
 
 import com.codahale.metrics.Timer;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FieldVisitor;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.ext.Sampler;
 import com.streamsets.pipeline.lib.util.SdcRecordConstants;
 import org.junit.Assert;
@@ -147,19 +149,20 @@ public class TestRecordSampler {
             return null;
           }
 
-          @Override
+          /** To be removed */
           public Map<String, Object> getAllAttributes() {
             return null;
           }
 
-          @Override
+          /** To be removed */
           public Map<String, Object> overrideUserAndSystemAttributes(Map<String, Object> newAttrs) {
             return null;
           }
-          @Override
+
+          /** To be removed */
           public Map<String, Object> getUserAttributes() {return null;}
 
-          @Override
+          /** To be removed */
           public Map<String, Object> setUserAttributes(Map<String, Object> newAttributes) {return null;}
 
         };
@@ -212,6 +215,10 @@ public class TestRecordSampler {
         @Override
         public Field set(String fieldPath, Field newField) {
           return null;
+        }
+
+        @Override
+        public void forEachField(FieldVisitor visitor) throws StageException {
         }
 
       });

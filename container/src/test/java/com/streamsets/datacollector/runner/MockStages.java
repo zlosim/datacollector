@@ -978,6 +978,7 @@ public class MockStages {
         if (stages.containsKey(name)) {
           StageDefinition oldDef = stages.get(name);
           StageDefinition newDef = new StageDefinition(
+              oldDef.getStageDef(),
               StageDefinitionBuilder.createLibraryDef(klass.getClassLoader()),
               false,
               klass,
@@ -1007,7 +1008,9 @@ public class MockStages {
               false,
               false,
               Collections.emptyList(),
-              Collections.emptyList()
+              Collections.emptyList(),
+              false,
+              false
           );
           stages.put(name, newDef);
         } else {
@@ -1481,6 +1484,32 @@ public class MockStages {
     stages.add(executor);
     StageConfiguration target = new StageConfigurationBuilder("t", "targetName")
       .withInputLanes("t")
+      .build();
+    stages.add(target);
+
+    PipelineConfiguration pipelineConfiguration = pipeline(stages);
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("a", "A");
+    pipelineConfiguration.setMetadata(metadata);
+    return pipelineConfiguration;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static PipelineConfiguration createPipelineConfigurationSourceTargetWithMultipleEventsProcessed() {
+    List<StageConfiguration> stages = new ArrayList<>();
+
+    StageConfiguration source = new StageConfigurationBuilder("s", "sourceNameEvent")
+      .withOutputLanes("t")
+      .withEventLanes("se")
+      .build();
+    stages.add(source);
+    StageConfiguration executor = new StageConfigurationBuilder("e", "executorName")
+      .withInputLanes("se", "te")
+      .build();
+    stages.add(executor);
+    StageConfiguration target = new StageConfigurationBuilder("t", "targetNameEvent")
+      .withInputLanes("t")
+      .withEventLanes("te")
       .build();
     stages.add(target);
 

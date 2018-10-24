@@ -96,8 +96,7 @@ public class CDCJdbcRunnable extends JdbcBaseRunnable {
 
     LinkedHashMap<String, Field> fields = JdbcUtil.resultSetToFields(
         rs,
-        commonSourceConfigBean.maxClobSize,
-        commonSourceConfigBean.maxBlobSize,
+        commonSourceConfigBean,
         errorRecordHandler,
         tableJdbcConfigBean.unknownTypeAction,
         recordHeader
@@ -106,8 +105,11 @@ public class CDCJdbcRunnable extends JdbcBaseRunnable {
     Map<String, String> columnOffsets = new HashMap<>();
 
     // Generate Offset includes __$start_lsn and __$seqval
-    for (String key : tableRuntimeContext.getSourceTableContext().getOffsetColumns()) {
-      columnOffsets.put(key, rs.getString(key));
+    columnOffsets.put(MSQueryUtil.CDC_START_LSN, rs.getString(MSQueryUtil.CDC_START_LSN));
+    columnOffsets.put(MSQueryUtil.CDC_SEQVAL, rs.getString(MSQueryUtil.CDC_SEQVAL));
+
+    if (commonSourceConfigBean.txnWindow > 0) {
+      columnOffsets.put(MSQueryUtil.CDC_TXN_WINDOW, Integer.toString(commonSourceConfigBean.txnWindow));
     }
 
     String offsetFormat = OffsetQueryUtil.getOffsetFormat(columnOffsets);
@@ -123,21 +125,53 @@ public class CDCJdbcRunnable extends JdbcBaseRunnable {
         JDBC_NAMESPACE_HEADER
     );
 
-    for (String fieldName : recordHeader) {
-      record.getHeader().setAttribute(JDBC_NAMESPACE_HEADER + fieldName, rs.getString(fieldName) != null ? rs.getString(fieldName) : "NULL" );
-    }
-
     //Set SDC Operation Header
     int op = MSOperationCode.convertToJDBCCode(rs.getInt(MSQueryUtil.CDC_OPERATION));
     record.getHeader().setAttribute(OperationType.SDC_OPERATION_TYPE, String.valueOf(op));
 
     for (String fieldName : recordHeader) {
-      record.getHeader().setAttribute(JDBC_NAMESPACE_HEADER + fieldName, rs.getString(fieldName) != null ? rs.getString(fieldName) : "NULL" );
+      try {
+        record.getHeader().setAttribute(JDBC_NAMESPACE_HEADER + fieldName,
+            rs.getString(fieldName) != null ? rs.getString(fieldName) : "NULL"
+        );
+      } catch (SQLException ex) {
+        //no-op
+        LOG.trace("the column name {} does not exists in the table: {}", fieldName, tableRuntimeContext.getQualifiedName());
+      }
     }
 
     batchContext.getBatchMaker().addRecord(record);
 
     offsets.put(tableRuntimeContext.getOffsetKey(), offsetFormat);
+  }
+
+  @Override
+  protected void handlePostBatchAsNeeded(
+      boolean resultSetEndReached,
+      int recordCount,
+      int eventCount,
+      BatchContext batchContext
+  ) {
+    if (commonSourceConfigBean.txnWindow > 0) {
+      // update the initial offset
+      int oldTnxWindow = 0;
+      Map<String, String> columnOffsets = OffsetQueryUtil.getColumnsToOffsetMapFromOffsetFormat(offsets.get(
+          tableRuntimeContext.getOffsetKey())
+      );
+
+      if (recordCount == 0) {
+        // add CDC_TXN_WINDOW by commonSourceConfigBean.txnWindow
+        if (columnOffsets.get(MSQueryUtil.CDC_TXN_WINDOW) != null) {
+          oldTnxWindow = Integer.parseInt(columnOffsets.get(MSQueryUtil.CDC_TXN_WINDOW));
+        }
+      }
+
+      columnOffsets.put(MSQueryUtil.CDC_TXN_WINDOW, Integer.toString(oldTnxWindow + commonSourceConfigBean.txnWindow));
+      String offsetFormat = OffsetQueryUtil.getOffsetFormat(columnOffsets);
+      offsets.put(tableRuntimeContext.getOffsetKey(), offsetFormat);
+    }
+
+    super.handlePostBatchAsNeeded(resultSetEndReached, recordCount, eventCount, batchContext);
   }
 
   @Override

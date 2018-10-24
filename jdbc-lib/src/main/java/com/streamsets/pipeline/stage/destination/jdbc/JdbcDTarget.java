@@ -43,7 +43,7 @@ import java.util.List;
 @StageDef(
     version = 6,
     label = "JDBC Producer",
-    description = "Insert, update, delete data to a JDBC destination.",
+    description = "Insert, update, and delete data to a JDBC destination.",
     upgrader = JdbcTargetUpgrader.class,
     icon = "rdbms.png",
     onlineHelpRefUrl ="index.html?contextID=task_cx3_lhh_ht"
@@ -168,7 +168,7 @@ public class JdbcDTarget extends DTarget {
       type = ConfigDef.Type.NUMBER,
       defaultValue = "-1",
       label = "Max Cache Size Per Batch (Entries)",
-      description = "The maximum number of prepared statement stored in cache. Cache is used only when " +
+      description = "Maximum number of prepared statement stored in cache. Cache is used only when " +
           "'Use Multi-Row Operation' checkbox is unchecked. Use -1 for unlimited number of entries.",
       dependsOn = "useMultiRowInsert",
       triggeredByValue = "false",
@@ -182,7 +182,7 @@ public class JdbcDTarget extends DTarget {
       type = ConfigDef.Type.BOOLEAN,
       defaultValue = "false",
       label = "Rollback Batch on Error",
-      description = "Whether or not to rollback the entire batch on error. Some JDBC drivers provide information" +
+      description = "Whether or not to rollback the entire batch on error. Some JDBC drivers provide information " +
           "about individual failed rows, and can insert partial batches.",
       displayPosition = 70,
       group = "JDBC"

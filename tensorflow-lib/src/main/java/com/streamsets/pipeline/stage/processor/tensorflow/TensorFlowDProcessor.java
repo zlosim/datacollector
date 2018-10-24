@@ -25,8 +25,8 @@ import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 
 @StageDef(
     version=1,
-    label="TensorFlow",
-    description="Performs calculations on a field-by-field basis",
+    label="TensorFlow Evaluator",
+    description="Uses TensorFlow models to generate predictions or classifications of data",
     icon="tensorflow.png",
     producesEvents = true,
     execution = {
@@ -36,7 +36,8 @@ import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
         ExecutionMode.CLUSTER_MESOS_STREAMING,
         ExecutionMode.EDGE
     },
-    onlineHelpRefUrl ="" // TODO
+    onlineHelpRefUrl ="index.html?contextID=task_fr5_gsh_z2b",
+    beta = true
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

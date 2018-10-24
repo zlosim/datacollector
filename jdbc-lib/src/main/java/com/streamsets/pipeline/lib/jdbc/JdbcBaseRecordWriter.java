@@ -15,12 +15,8 @@
  */
 package com.streamsets.pipeline.lib.jdbc;
 
-import static java.sql.Types.BIT;
-import static java.sql.Types.VARCHAR;
-
 import com.google.common.base.Strings;
 import com.streamsets.pipeline.api.Field;
-import com.streamsets.pipeline.api.Field.Type;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
@@ -30,8 +26,6 @@ import java.sql.Types;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.DataFormatException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,9 +110,9 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   private static final int COLUMN_NAME = 4;
   private static final int DATA_TYPE = 5;
 
-  JDBCOperationType defaultOp;
-  UnsupportedOperationAction unsupportedAction;
-  private List<String> primaryKeyParams;
+  private final int defaultOpCode;
+  private final UnsupportedOperationAction unsupportedAction;
+  private final List<String> primaryKeyParams;
 
   public JdbcBaseRecordWriter(
       String connectionString,
@@ -127,22 +121,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
       String tableName,
       boolean rollbackOnError,
       List<JdbcFieldColumnParamMapping> customMappings,
-      JDBCOperationType defaultOp,
-      UnsupportedOperationAction unsupportedAction,
-      JdbcRecordReader recordReader,
-      boolean caseSensitive
-  ) throws StageException {
-    this(connectionString, dataSource, schema, tableName, rollbackOnError, customMappings, defaultOp, unsupportedAction, recordReader, null, caseSensitive);
-  }
-
-  public JdbcBaseRecordWriter(
-      String connectionString,
-      DataSource dataSource,
-      String schema,
-      String tableName,
-      boolean rollbackOnError,
-      List<JdbcFieldColumnParamMapping> customMappings,
-      JDBCOperationType defaultOp,
+      int defaultOpCode,
       UnsupportedOperationAction unsupportedAction,
       JdbcRecordReader recordReader,
       List<JdbcFieldColumnMapping> generatedColumnMappings,
@@ -169,7 +148,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
     }
     this.rollbackOnError = rollbackOnError;
     this.customMappings = customMappings;
-    this.defaultOp = defaultOp;
+    this.defaultOpCode = defaultOpCode;
     this.unsupportedAction = unsupportedAction;
     this.recordReader = recordReader;
     this.generatedColumnMappings = generatedColumnMappings;
@@ -184,6 +163,10 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
       primaryKeyParams.add(getColumnsToParameters().get(key));
       columnsWithoutPrimaryKeys.remove(key);
     }
+  }
+
+  @Override
+  public void deinit() {
   }
 
   /**
@@ -225,7 +208,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
    */
   private void createDefaultFieldMappings() throws StageException {
     try (Connection connection = dataSource.getConnection()) {
-      try (ResultSet res = JdbcUtil.getTableMetadata(connection, schema, tableName, caseSensitive)) {
+      try (ResultSet res = JdbcUtil.getTableMetadata(connection, schema, tableName)) {
         if (!res.next()) {
           throw new StageException(JdbcErrors.JDBC_16, getTableName());
         }
@@ -499,7 +482,12 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
           case TIME:
           case DATETIME:
             if (!isColumnTypeDate(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             // Java Date types are not accepted by JDBC drivers, so we need to convert to java.sql.Timestamp
             statement.setTimestamp(paramIdx,
@@ -508,62 +496,112 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
             break;
           case BOOLEAN:
             if (columnType != Types.BOOLEAN) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setBoolean(paramIdx, (Boolean)value);
             break;
           case CHAR:
           case STRING:
             if (!isColumnTypeText(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setString(paramIdx, String.valueOf(value));
             break;
           case BYTE:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setByte(paramIdx, (Byte)value);
             break;
           case SHORT:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setShort(paramIdx, (Short)value);
             break;
           case INTEGER:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setInt(paramIdx, (Integer)value);
             break;
           case LONG:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setLong(paramIdx, (Long)value);
             break;
           case FLOAT:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setFloat(paramIdx, (Float)value);
             break;
           case DOUBLE:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setDouble(paramIdx, (Double)value);
             break;
           case DECIMAL:
             if (!isColumnTypeNumeric(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setBigDecimal(paramIdx, (BigDecimal)value);
             break;
           case BYTE_ARRAY:
             if (!isColumnTypeBinary(columnType)) {
-              throw new IllegalArgumentException("Incorrect type");
+              LOG.debug("fieldType: {} and column: {} not directly compatible. Attempting to use setObject()",
+                  fieldType,
+                  column
+              );
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
             }
             statement.setBytes(paramIdx, (byte[])value);
             break;
@@ -573,15 +611,13 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
             throw new DataFormatException(fieldType.name());
           case ZONED_DATETIME: //guidance is to use setObject() for this type
           default:
+            LOG.debug("fieldType: {} handled by default case. Attempting to use setObject()", fieldType);
             statement.setObject(paramIdx, value, getColumnType(column));
             break;
         }
       } catch (DataFormatException e) {
         LOG.error("Query failed unsupported type {}", e.getMessage());
         throw new OnRecordErrorException(record, JdbcErrors.JDBC_05, field.getValue(), fieldType.toString(), column);
-      } catch (IllegalArgumentException e) {
-        LOG.error("Query failed due to type mismatch {} for column {}", fieldType.toString(), column);
-        throw new OnRecordErrorException(record, JdbcErrors.JDBC_23, field.getValue(), fieldType.toString(), column);
       } catch (SQLException e) {
         LOG.error("Query failed due to {}", e.getMessage(), e);
         throw new OnRecordErrorException(record, JdbcErrors.JDBC_23, field.getValue(), fieldType.toString(), column);
@@ -634,4 +670,21 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
     LOG.error(formattedError, e);
     throw new StageException(JdbcErrors.JDBC_14, formattedError);
   }
+
+  /**
+   * Get the numeric operation code from record header. The default code is
+   * used if the operation code is not found in the header.
+   *
+   * @param record the record to find the operation code
+   * @param errorRecords the list to take error records
+   * @return the numeric operation code or -1 for unsupported operation
+   */
+  protected int getOperationCode(Record record, List<OnRecordErrorException> errorRecords) {
+    return recordReader.getOperationFromRecord(
+        record,
+        defaultOpCode,
+        unsupportedAction,
+        errorRecords);
+  }
+
 }

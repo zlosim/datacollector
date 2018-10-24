@@ -15,15 +15,33 @@
  */
 package com.streamsets.datacollector.restapi.bean;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.List;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class StageLibraryJson {
   private String id;
   private String label;
   private boolean installed;
+  private List<List<StageInfoJson>> stageDefList;
+  private String downloadUrl;
 
-  public StageLibraryJson(String id, String label, boolean installed) {
+  @JsonCreator
+  public StageLibraryJson(
+      @JsonProperty("id") String id,
+      @JsonProperty("label") String label,
+      @JsonProperty("installed") boolean installed,
+      @JsonProperty("stageDefList") List<List<StageInfoJson>> stageDefList,
+      @JsonProperty("downloadUrl") String downloadUrl
+  ) {
     this.id = id;
     this.label = label;
     this.installed = installed;
+    this.stageDefList = stageDefList;
+    this.downloadUrl = downloadUrl;
   }
 
   public String getId() {
@@ -48,5 +66,21 @@ public class StageLibraryJson {
 
   public void setInstalled(boolean installed) {
     this.installed = installed;
+  }
+
+  public List<List<StageInfoJson>> getStageDefList() {
+    return stageDefList;
+  }
+
+  public void setStageDefList(List<List<StageInfoJson>> stageDefList) {
+    this.stageDefList = stageDefList;
+  }
+
+  public String getDownloadUrl() {
+    return downloadUrl;
+  }
+
+  public void setDownloadUrl(String downloadUrl) {
+    this.downloadUrl = downloadUrl;
   }
 }

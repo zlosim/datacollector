@@ -23,10 +23,10 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.6.0-SNAPSHOT</version>
   </parent>
   <artifactId>streamsets-datacollector-root-proto</artifactId>
-  <version>3.5.0-SNAPSHOT</version>
+  <version>3.6.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Root Prototype POM</description>
   <name>StreamSets Data Collector Root Prototype POM</name>
   <packaging>pom</packaging>
@@ -49,17 +49,21 @@
          mismatches with multiple artifacts of the same logical dependency.
     -->
     <awaitility.version>2.0.0</awaitility.version>
-    <bouncycastle.version>1.57</bouncycastle.version>
-    <metrics.version>3.1.2</metrics.version>
+    <aws-encryption-sdk.version>1.3.5</aws-encryption-sdk.version>
+    <bouncycastle.version>1.60</bouncycastle.version>
+    <conscrypt.version>1.2.0</conscrypt.version>
+    <metrics.version>4.0.3</metrics.version>
     <log4j.version>1.2.17</log4j.version>
     <slf4j.version>1.7.7</slf4j.version>
     <protobuf.version>3.3.1</protobuf.version>
     <surefire.version>2.19.1</surefire.version>
     <failsafe.version>2.19.1</failsafe.version>
     <junit.version>4.12</junit.version>
+    <!-- Check compatible versions before upgrading hamcrest -->
     <hamcrest.version>1.3</hamcrest.version>
+    <!-- Mockito and powermock version must be kept in sync based on: https://github.com/powermock/powermock/wiki/Mockito#supported-versions -->
     <mockito.version>1.10.19</mockito.version>
-    <powermock.version>1.7.3</powermock.version>
+    <powermock.version>1.7.4</powermock.version>
     <jackson.version>2.8.9</jackson.version>
     <jacoco.version>0.7.7.201606060606</jacoco.version>
     <hikaricp.version>2.4.1</hikaricp.version>
@@ -68,7 +72,7 @@
     <argLine>-Xmx2g</argLine>
     <testcontainers.version>1.4.3</testcontainers.version>
     <netty.version>4.1.16.Final</netty.version>
-
+    <jetty.version>9.4.12.v20180830</jetty.version>
     <avro.version>1.7.7</avro.version>
 
     <!-- Platform encoding override -->
@@ -76,7 +80,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <hive-storage-api.version>2.2.1</hive-storage-api.version>
-    <streamsets-datacollector-rbgen-maven-plugin.version>3.5.0-SNAPSHOT</streamsets-datacollector-rbgen-maven-plugin.version>
+    <streamsets-datacollector-rbgen-maven-plugin.version>3.6.0-SNAPSHOT</streamsets-datacollector-rbgen-maven-plugin.version>
   </properties>
 
   <!-- API dependencies ONLY -->
@@ -87,6 +91,21 @@
         <artifactId>awaitility</artifactId>
         <version>${awaitility.version}</version>
       </dependency>
+      <!-- There can only be a single version loaded -->
+      <dependency>
+        <groupId>org.conscrypt</groupId>
+        <artifactId>conscrypt-openjdk-uber</artifactId>
+        <version>${conscrypt.version}</version>
+      </dependency>
+      <!-- Jetty BOM -->
+      <dependency>
+        <groupId>org.eclipse.jetty</groupId>
+        <artifactId>jetty-bom</artifactId>
+        <version>${jetty.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- end -->
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
         <artifactId>metrics-core</artifactId>
@@ -160,6 +179,11 @@
         <version>${jersey.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.glassfish.jersey.connectors</groupId>
+        <artifactId>jersey-jetty-connector</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.glassfish.jersey.security</groupId>
         <artifactId>oauth1-client</artifactId>
         <version>${jersey.version}</version>
@@ -172,6 +196,11 @@
       <dependency>
         <groupId>org.glassfish.jersey.test-framework.providers</groupId>
         <artifactId>jersey-test-framework-provider-grizzly2</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.test-framework.providers</groupId>
+        <artifactId>jersey-test-framework-provider-jetty</artifactId>
         <version>${jersey.version}</version>
       </dependency>
       <dependency>
@@ -247,6 +276,11 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-codec-http</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
         <version>${netty.version}</version>
       </dependency>
 
@@ -446,7 +480,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>2.3</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>

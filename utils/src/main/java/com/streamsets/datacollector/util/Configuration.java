@@ -33,7 +33,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-public class Configuration {
+public class Configuration implements com.streamsets.pipeline.api.Configuration {
   private static File fileRefsBaseDir;
 
   private static final String SENSITIVE_PROPERTIES = "sensitive.properties";
@@ -260,11 +260,19 @@ public class Configuration {
   }
 
   public Configuration getSubSetConfiguration(String namePrefix) {
+    return getSubSetConfiguration(namePrefix, false);
+  }
+
+  public Configuration getSubSetConfiguration(String namePrefix, boolean dropPrefix) {
     Preconditions.checkNotNull(namePrefix, "namePrefix cannot be null");
     Map<String, Ref> subSetMap = new LinkedHashMap<>();
     for (Map.Entry<String, Ref> entry : map.entrySet()) {
       if (entry.getKey().startsWith(namePrefix)) {
-        subSetMap.put(entry.getKey(), entry.getValue());
+        String key = entry.getKey();
+        if(dropPrefix) {
+          key = key.substring(namePrefix.length());
+        }
+        subSetMap.put(key, entry.getValue());
       }
     }
     return new Configuration(subSetMap);
@@ -316,21 +324,25 @@ public class Configuration {
     return map.containsKey(name) ? map.get(name).getValue() : null;
   }
 
+  @Override
   public String get(String name, String defaultValue) {
     String value = get(name);
     return (value != null) ? value : defaultValue;
   }
 
+  @Override
   public long get(String name, long defaultValue) {
     String value = get(name);
     return (value != null) ? Long.parseLong(value) : defaultValue;
   }
 
+  @Override
   public int get(String name, int defaultValue) {
     String value = get(name);
     return (value != null) ? Integer.parseInt(value) : defaultValue;
   }
 
+  @Override
   public boolean get(String name, boolean defaultValue) {
     String value = get(name);
     return (value != null) ? Boolean.parseBoolean(value) : defaultValue;
@@ -393,4 +405,18 @@ public class Configuration {
     return Utils.format("Configuration['{}']", map);
   }
 
+  /**
+   * Set multiple configs at once.
+   *
+   * If a value of given config is 'null', then this config key will be un-set.
+   */
+  public void set(Map<String, String> newConfiguration) {
+    for(Map.Entry<String, String> entry : newConfiguration.entrySet()) {
+      if(entry.getValue() == null) {
+        this.unset(entry.getKey());
+      } else {
+        this.set(entry.getKey(), entry.getValue());
+      }
+    }
+  }
 }

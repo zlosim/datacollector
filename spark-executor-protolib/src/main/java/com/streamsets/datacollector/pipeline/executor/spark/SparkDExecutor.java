@@ -25,10 +25,11 @@ import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.base.configurablestage.DExecutor;
 
 @StageDef(
-    version = 1,
+    version = 2,
     label = "Spark Executor",
     description = "Run Spark Applications",
     icon = "spark-logo-hd.png",
+    upgrader = SparkExecutorUpgrader.class,
     onlineHelpRefUrl ="index.html?contextID=task_cdw_wxb_1z",
     producesEvents = true
 )

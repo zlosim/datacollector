@@ -368,7 +368,7 @@ public final class TableContextUtil {
     Pattern schemaExclusion =
         StringUtils.isEmpty(tableConfigBean.schemaExclusionPattern)?
             null : Pattern.compile(tableConfigBean.schemaExclusionPattern);
-    try (ResultSet rs = JdbcUtil.getTableMetadata(connection, null, tableConfigBean.schema, tableConfigBean.tablePattern, true)) {
+    try (ResultSet rs = JdbcUtil.getTableAndViewMetadata(connection, tableConfigBean.schema, tableConfigBean.tablePattern)) {
       while (rs.next()) {
         String schemaName = rs.getString(TABLE_METADATA_TABLE_SCHEMA_CONSTANT);
         String tableName = rs.getString(TABLE_METADATA_TABLE_NAME_CONSTANT);
@@ -595,14 +595,14 @@ public final class TableContextUtil {
 
     long currentVersion = getCurrentVersion(connection);
 
-    try (ResultSet rs = JdbcUtil.getTableMetadata(connection, null, tableConfigBean.schema, tableConfigBean.tablePattern, false)) {
+    try (ResultSet rs = JdbcUtil.getTableMetadata(connection, tableConfigBean.schema, tableConfigBean.tablePattern)) {
       while (rs.next()) {
         String schemaName = rs.getString(TABLE_METADATA_TABLE_SCHEMA_CONSTANT);
         String tableName = rs.getString(TABLE_METADATA_TABLE_NAME_CONSTANT);
         if (p == null || !p.matcher(tableName).matches()) {
           // validate table is change tracking enabled
           try {
-            long min_valid_version = validateTable(connection, tableName);
+            long min_valid_version = validateTable(connection, schemaName, tableName);
             if (min_valid_version <= currentVersion) {
               tableContextMap.put(
                   getQualifiedTableName(schemaName, tableName),
@@ -633,7 +633,7 @@ public final class TableContextUtil {
 
     final String tablePattern = tableConfigBean.capture_instance + SQL_SERVER_CDC_TABLE_SUFFIX;
     final String cdcSchema = "cdc";
-    try (ResultSet rs = JdbcUtil.getTableMetadata(connection, null, cdcSchema, tablePattern, false)) {
+    try (ResultSet rs = JdbcUtil.getTableMetadata(connection, cdcSchema, tablePattern)) {
       while (rs.next()) {
         String schemaName = rs.getString(TABLE_METADATA_TABLE_SCHEMA_CONSTANT);
         String tableName = rs.getString(TABLE_METADATA_TABLE_NAME_CONSTANT);
@@ -677,8 +677,9 @@ public final class TableContextUtil {
     throw new StageException(JdbcErrors.JDBC_201, -1);
   }
 
-  private static long validateTable(Connection connection, String table) throws SQLException, StageException {
-    PreparedStatement validation = connection.prepareStatement(String.format(MSQueryUtil.getMinVersion(), table));
+  private static long validateTable(Connection connection, String schema, String table) throws SQLException, StageException {
+    String query = MSQueryUtil.getMinVersion(schema, table);
+    PreparedStatement validation = connection.prepareStatement(query);
     ResultSet resultSet = validation.executeQuery();
     if (resultSet.next()) {
       return resultSet.getLong("min_valid_version");
@@ -712,7 +713,6 @@ public final class TableContextUtil {
     if (tableConfigBean.initialOffset < 0) {
       initalSyncVersion = currentSyncVersion;
     }
-    offsetColumnToStartOffset.put(MSQueryUtil.SYS_CHANGE_VERSION, Long.toString(initalSyncVersion));
 
     final Map<String, String> offsetAdjustments = new HashMap<>();
     final Map<String, String> offsetColumnMinValues = new HashMap<>();
@@ -730,7 +730,8 @@ public final class TableContextUtil {
         TableConfigBean.ENABLE_NON_INCREMENTAL_DEFAULT_VALUE,
         partitioningMode,
         maxNumActivePartitions,
-        extraOffsetColumnConditions
+        extraOffsetColumnConditions,
+        initalSyncVersion
     );
   }
 
@@ -749,6 +750,7 @@ public final class TableContextUtil {
 
     offsetColumnToType.put(MSQueryUtil.CDC_START_LSN, Types.VARBINARY);
     offsetColumnToType.put(MSQueryUtil.CDC_SEQVAL, Types.VARBINARY);
+    offsetColumnToType.put(MSQueryUtil.CDC_TXN_WINDOW, Types.INTEGER);
 
     final Map<String, String> offsetAdjustments = new HashMap<>();
     final Map<String, String> offsetColumnMinValues = new HashMap<>();

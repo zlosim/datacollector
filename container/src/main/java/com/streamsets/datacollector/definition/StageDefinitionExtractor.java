@@ -289,6 +289,7 @@ public abstract class StageDefinitionExtractor {
         boolean producesEvents = sDef.producesEvents();
 
         return new StageDefinition(
+            sDef,
             libraryDef,
             privateClassLoader,
             klass,
@@ -318,7 +319,9 @@ public abstract class StageDefinitionExtractor {
             offsetCommitController,
             producesEvents,
             services,
-            hideStage
+            hideStage,
+            sDef.sendsResponse(),
+            sDef.beta()
         );
       } catch (Exception e) {
         throw new IllegalStateException("Exception while extracting stage definition for " + getStageName(klass), e);

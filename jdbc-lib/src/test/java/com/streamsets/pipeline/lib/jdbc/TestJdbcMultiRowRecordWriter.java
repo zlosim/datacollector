@@ -117,13 +117,14 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         JdbcMultiRowRecordWriter.UNLIMITED_PARAMETERS,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         false
     );
     List<Record> batch = generateRecords(10);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -145,14 +146,15 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         JdbcMultiRowRecordWriter.UNLIMITED_PARAMETERS,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.SEND_TO_ERROR,
+        null,
         new JdbcRecordReader(),
         false
     );
     List<Record> batch = generateRecords(10);
     batch.get(0).getHeader().setAttribute(OperationType.SDC_OPERATION_TYPE, "-5");
-    List<OnRecordErrorException> errors = writer.writeBatch(batch);
+    List<OnRecordErrorException> errors = writer.writeBatch(batch.iterator());
 
     assertEquals(1, errors.size());
 
@@ -177,14 +179,15 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         JdbcMultiRowRecordWriter.UNLIMITED_PARAMETERS,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = generateRecords(10);
 
-    writer.writePerRecord(batch);
+    writer.writePerRecord(batch.iterator());
   }
 
   @Test
@@ -200,14 +203,15 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         8,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
 
     Collection<Record> records = generateRecords(10);
-    writer.writeBatch(records);
+    writer.writeBatch(records.iterator());
 
 
     // note that unfortunately we have no way to directly observe that the expected batching is actually occurring -
@@ -233,14 +237,15 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         JdbcMultiRowRecordWriter.UNLIMITED_PARAMETERS,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
 
     Collection<Record> records = generateRecords(1);
-    writer.writeBatch(records);
+    writer.writeBatch(records.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -271,8 +276,9 @@ public class TestJdbcMultiRowRecordWriter {
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
         15,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
@@ -322,8 +328,9 @@ public class TestJdbcMultiRowRecordWriter {
         false, //rollback
         new LinkedList<>(),
         15,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         true
     );
@@ -388,13 +395,14 @@ public class TestJdbcMultiRowRecordWriter {
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
         PreparedStatementCache.UNLIMITED_CACHE,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
+        null,
         new JdbcRecordReader(),
         caseSensitive
     );
     List<Record> batch = ImmutableList.of(insertRecord, updateRecord);
-    writer.writeBatch(batch);
+    writer.writeBatch(batch.iterator());
 
     connection = DriverManager.getConnection(connectionString, username, password);
     try (Statement statement = connection.createStatement()) {
@@ -417,13 +425,14 @@ public class TestJdbcMultiRowRecordWriter {
         false,
         mappings,
         JdbcMultiRowRecordWriter.UNLIMITED_PARAMETERS,
-        JDBCOperationType.INSERT,
+        JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
+        null,
         new JdbcRecordReader(),
         false
     );
     List<Record> batch = Collections.singletonList(RecordCreator.create());
-    List<OnRecordErrorException> errors = writer.writeBatch(batch);
+    List<OnRecordErrorException> errors = writer.writeBatch(batch.iterator());
     Assert.assertTrue(errors.isEmpty());
   }
 

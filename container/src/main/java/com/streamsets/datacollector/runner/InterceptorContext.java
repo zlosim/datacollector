@@ -23,6 +23,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.streamsets.datacollector.blobstore.BlobStoreRuntime;
 import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.main.RuntimeInfo;
@@ -37,6 +38,7 @@ import com.streamsets.pipeline.api.ErrorCode;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.interceptor.Interceptor;
+import com.streamsets.pipeline.api.interceptor.InterceptorCreator;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -49,6 +51,7 @@ import java.util.Map;
 public class InterceptorContext implements Interceptor.Context {
   private static final String CUSTOM_METRICS_PREFIX = "interceptor.custom.";
 
+  private final InterceptorCreator.InterceptorType type;
   private final StageLibraryTask stageLibrary;
   private final String pipelineId;
   private final String pipelineTitle;
@@ -99,6 +102,7 @@ public class InterceptorContext implements Interceptor.Context {
   private final ClassLoader containerClassLoader;
 
   public InterceptorContext(
+    InterceptorCreator.InterceptorType type,
     BlobStore blobStore,
     Configuration configuration,
     String stageInstanceName,
@@ -119,7 +123,9 @@ public class InterceptorContext implements Interceptor.Context {
     long startTime,
     LineagePublisherDelegator lineagePublisherDelegator
   ) {
-    this.blobStore = blobStore;
+    this.containerClassLoader = Thread.currentThread().getContextClassLoader();
+    this.type = type;
+    this.blobStore = new BlobStoreRuntime(containerClassLoader, blobStore);
     this.configuration = configuration;
     this.stageInstanceName = stageInstanceName;
     this.metricName = metricName;
@@ -138,7 +144,6 @@ public class InterceptorContext implements Interceptor.Context {
     this.emailSender = emailSender;
     this.startTime = startTime;
     this.lineagePublisherDelegator = lineagePublisherDelegator;
-    this.containerClassLoader = Thread.currentThread().getContextClassLoader();
   }
 
   @Override
@@ -150,6 +155,7 @@ public class InterceptorContext implements Interceptor.Context {
     return rev;
   }
 
+  @Override
   public String getStageInstanceName() {
     return stageInstanceName;
   }
@@ -212,7 +218,7 @@ public class InterceptorContext implements Interceptor.Context {
   }
 
   private String createMetricName(String name) {
-    return CUSTOM_METRICS_PREFIX + stageInstanceName + "." + metricName + "." + name;
+    return CUSTOM_METRICS_PREFIX + type.name() + "." + stageInstanceName + "." + metricName + "." + name;
   }
 
   @Override
@@ -225,6 +231,11 @@ public class InterceptorContext implements Interceptor.Context {
   @Override
   public String getConfig(String configName) {
     return configuration.get(configName, null);
+  }
+
+  @Override
+  public com.streamsets.pipeline.api.Configuration getConfiguration() {
+    return configuration;
   }
 
   @Override

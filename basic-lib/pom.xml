@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.6.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-basic-lib</artifactId>
-  <version>3.5.0-SNAPSHOT</version>
+  <version>3.6.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Basic Lib</description>
   <name>StreamSets Data Collector Basic Lib</name>
   <packaging>jar</packaging>
@@ -42,9 +42,10 @@
     <joda.version>2.8</joda.version>
     <milo.version>0.1.5</milo.version>
     <xerces.version>2.11.0</xerces.version>
-    <jetty.version>9.4.2.v20170220</jetty.version>
+    <jetty.version>9.4.12.v20180830</jetty.version>
     <paho.version>1.0.2</paho.version>
     <snappy.version>0.4</snappy.version>
+    <syslog.version>1.1.3</syslog.version>
   </properties>
 
   <dependencies>
@@ -147,6 +148,11 @@
     <dependency>
       <groupId>org.glassfish.jersey.security</groupId>
       <artifactId>oauth1-client</artifactId>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.jaxrs</groupId>
+      <artifactId>jackson-jaxrs-json-provider</artifactId>
       <scope>compile</scope>
     </dependency>
 
@@ -327,6 +333,12 @@
       <groupId>commons-net</groupId>
       <artifactId>commons-net</artifactId>
       <version>3.5</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.cloudbees</groupId>
+      <artifactId>syslog-java-client</artifactId>
+      <version>${syslog.version}</version>
     </dependency>
 
     <!-- Test Dependencies -->

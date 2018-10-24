@@ -24,10 +24,13 @@ import com.streamsets.pipeline.lib.generator.DataGenerator;
 import com.streamsets.pipeline.lib.generator.DataGeneratorException;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.lib.http.HttpConfigs;
+import com.streamsets.pipeline.lib.microservice.ResponseConfigBean;
 import com.streamsets.pipeline.stage.origin.httpserver.PushHttpReceiver;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 import com.streamsets.pipeline.stage.util.http.HttpStageUtil;
 import org.apache.commons.collections.CollectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -42,16 +45,18 @@ import java.util.Set;
 
 public class RestServiceReceiver extends PushHttpReceiver {
 
+  private static final Logger LOG = LoggerFactory.getLogger(RestServiceReceiver.class);
   public final static String STATUS_CODE_RECORD_HEADER_ATTR_NAME = "responseStatusCode";
+  public final static String RAW_DATA_RECORD_HEADER_ATTR_NAME = "rawPayloadRecord";
   final static String EMPTY_PAYLOAD_RECORD_HEADER_ATTR_NAME = "emptyPayloadRecord";
-  private final RestServiceResponseConfigBean responseConfig;
+  private final ResponseConfigBean responseConfig;
   private DataGeneratorFactory dataGeneratorFactory;
 
   RestServiceReceiver(
       HttpConfigs httpConfigs,
       int maxRequestSizeMB,
       DataParserFormatConfig dataParserFormatConfig,
-      RestServiceResponseConfigBean responseConfig
+      ResponseConfigBean responseConfig
   ) {
     super(httpConfigs, maxRequestSizeMB, dataParserFormatConfig);
     this.responseConfig = responseConfig;
@@ -118,7 +123,9 @@ public class RestServiceReceiver extends PushHttpReceiver {
       responseStatusCode = 207;
     }
 
-    Record responseEnvelopeRecord = createEnvelopeRecord(
+    Record responseEnvelopeRecord = HttpStageUtil.createEnvelopeRecord(
+        getContext(),
+        getParserFactory(),
         successRecords,
         errorRecords,
         responseStatusCode,
@@ -144,30 +151,6 @@ public class RestServiceReceiver extends PushHttpReceiver {
     customHeaderAttributes.forEach((key, value) -> placeholderRecord.getHeader().setAttribute(key, value));
     placeholderRecord.getHeader().setAttribute(EMPTY_PAYLOAD_RECORD_HEADER_ATTR_NAME, "true");
     return placeholderRecord;
-  }
-
-  private Record createEnvelopeRecord(
-      List<Record> successRecords,
-      List<Record> errorRecords,
-      int statusCode,
-      String errorMessage
-  ) {
-    LinkedHashMap<String,Field> envelopeRecordVal = new LinkedHashMap<>();
-    envelopeRecordVal.put("httpStatusCode", Field.create(statusCode));
-    envelopeRecordVal.put("data", Field.create(convertRecordsToFields(successRecords)));
-    envelopeRecordVal.put("error", Field.create(convertRecordsToFields(errorRecords)));
-    envelopeRecordVal.put("errorMessage", Field.create(errorMessage));
-    Record envelopeRecord = getContext().createRecord("envelopeRecord");
-    envelopeRecord.set(Field.createListMap(envelopeRecordVal));
-    return envelopeRecord;
-  }
-
-  private List<Field> convertRecordsToFields(List<Record> recordList) {
-    List<Field> fieldList = new ArrayList<>();
-    recordList.forEach(record -> {
-      fieldList.add(record.get());
-    });
-    return fieldList;
   }
 
 }

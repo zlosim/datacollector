@@ -249,10 +249,14 @@ public class KafkaTargetConfig {
   private long retryBackoffMs;
 
   public void init(Stage.Context context, List<Stage.ConfigIssue> issues) {
-    init(context, this.dataFormat, issues);
+    init(context, this.dataFormat, false, issues);
   }
 
-  public void init(Stage.Context context, DataFormat dataFormat, List<Stage.ConfigIssue> issues) {
+  public void init(Stage.Context context, boolean sendResponse, List<Stage.ConfigIssue> issues) {
+    init(context, this.dataFormat, sendResponse, issues);
+  }
+
+  public void init(Stage.Context context, DataFormat dataFormat, boolean sendResponse, List<Stage.ConfigIssue> issues) {
     dataGeneratorFormatConfig.init(
         context,
         dataFormat,
@@ -357,7 +361,8 @@ public class KafkaTargetConfig {
           new HashMap<String, Object>(kafkaProducerConfigs),
           partitionStrategy,
           metadataBrokerList,
-          dataFormat
+          dataFormat,
+          sendResponse
       );
       kafkaProducer = SdcKafkaProducerFactory.create(settings).create();
       try {
@@ -429,16 +434,11 @@ public class KafkaTargetConfig {
       partitionEval = context.createELEval("partition");
       partitionVars = context.createELVars();
       //There is no scope to provide partitionVars for kafka target as of today, create empty partitionVars
-      ELUtils.validateExpression(
-          partitionEval,
-          context.createELVars(),
-          partition,
+      ELUtils.validateExpression(partition,
           context,
           KafkaDestinationGroups.KAFKA.name(),
           KAFKA_CONFIG_BEAN_PREFIX + "partition",
-          KafkaErrors.KAFKA_57,
-          Object.class,
-          issues
+          KafkaErrors.KAFKA_57, issues
       );
     }
   }
@@ -446,16 +446,11 @@ public class KafkaTargetConfig {
   private void validateTopicExpression(Stage.Context context, List<Stage.ConfigIssue> issues) {
     topicEval = context.createELEval("topicExpression");
     topicVars = context.createELVars();
-    ELUtils.validateExpression(
-        topicEval,
-        context.createELVars(),
-        topicExpression,
+    ELUtils.validateExpression(topicExpression,
         context,
         KafkaDestinationGroups.KAFKA.name(),
         KAFKA_CONFIG_BEAN_PREFIX + "topicExpression",
-        KafkaErrors.KAFKA_61,
-        Object.class,
-        issues
+        KafkaErrors.KAFKA_61, issues
     );
   }
 

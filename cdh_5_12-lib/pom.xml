@@ -23,12 +23,12 @@
     <parent>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-        <version>3.5.0-SNAPSHOT</version>
+        <version>3.6.0-SNAPSHOT</version>
         <relativePath>../stage-lib-parent</relativePath>
     </parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-cdh_5_12-lib</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.6.0-SNAPSHOT</version>
     <description>StreamSets Data Collector CDH 5.12 Lib</description>
     <name>StreamSets Data Collector CDH 5.12 Lib</name>
     <packaging>jar</packaging>
@@ -43,7 +43,7 @@
         <thrift.version>0.9.3</thrift.version>
         <avro.version>1.7.7</avro.version>
         <spark.version>2.1.0.cloudera1</spark.version>
-        <jackson.version>2.2.3</jackson.version>
+        <jackson.version>2.8.9</jackson.version>
         <netty.version>4.0.29.Final</netty.version>
     </properties>
 
@@ -71,6 +71,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
         <!--Dependency for Solr Unit Tests to override SDC Jetty Artifacts -->
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
@@ -141,10 +142,6 @@
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.netty</groupId>
                     <artifactId>netty-transport-native-epoll</artifactId>
                 </exclusion>
                 <exclusion>
@@ -154,6 +151,17 @@
             </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.streamsets</groupId>
             <artifactId>streamsets-datacollector-mapreduce-protolib</artifactId>
@@ -185,6 +193,39 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-core_2.11</artifactId>
             <version>${spark.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <scope>compile</scope>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.module</groupId>
+            <artifactId>jackson-module-paranamer</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
@@ -301,6 +342,10 @@
                     <groupId>com.codahale.metrics</groupId>
                     <artifactId>metrics-jvm</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-all</artifactId>
+                </exclusion>                  
             </exclusions>
         </dependency>
 
@@ -608,6 +653,19 @@
             <artifactId>flume-ng-configuration</artifactId>
             <version>${flume.version}</version>
             <scope>test</scope>
+        </dependency>
+
+        <!-- This MUST appear after hdfs-protolib as we override classes from hadoop-common
+        which is a transitive dependency of this one. -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-azure</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-azure-datalake</artifactId>
+            <version>${hadoop.version}</version>
         </dependency>
 
         <!-- test dependencies-->

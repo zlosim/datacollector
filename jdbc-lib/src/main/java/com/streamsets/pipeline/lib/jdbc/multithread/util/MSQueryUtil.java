@@ -41,6 +41,7 @@ public final class MSQueryUtil {
   public static final String CDC_OPERATION = "__$operation";
   public static final String CDC_UPDATE_MASK = "__$update_mask";
   public static final String CDC_COMMAND_ID = "__$command_id";
+  public static final String CDC_TXN_WINDOW = "__$sdc.txn_window";
   public static final String CDC_SOURCE_SCHEMA_NAME = "schema_name";
   public static final String CDC_SOURCE_TABLE_NAME = "table_name";
   public static final String CDC_CAPTURE_INSTANCE_NAME = "capture_instance_name";
@@ -49,32 +50,31 @@ public final class MSQueryUtil {
   private static final String BEGIN_QUERY = "BEGIN";
   private static final String END_QUERY = "END";
 
-  private static final String CHANGE_TRACKING_TABLE_QUERY = "SET NOCOUNT ON;\n" +
-      "SELECT min_valid_version \n" +
+  private static final String CHANGE_TRACKING_TABLE_QUERY = "SELECT min_valid_version \n" +
       "FROM sys.change_tracking_tables t\n" +
-      "WHERE t.object_id = OBJECT_ID('%s')";
+      "WHERE t.object_id = OBJECT_ID('%s.%s')";
 
   private static final String CHANGE_TRACKING_CURRENT_VERSION_QUERY = "SELECT CHANGE_TRACKING_CURRENT_VERSION()";
 
-  private static final String INIT_CHANGE_TRACKING_QUERY = "SET NOCOUNT ON;\n" +
-      "DECLARE @synchronization_version BIGINT = %1$s;\n" +
+  private static final String INIT_CHANGE_TRACKING_QUERY = "DECLARE @synchronization_version BIGINT = %1$s;\n" +
       "\n" +
-      "SELECT TOP %2$s * \n" +
-      "FROM %3$s AS P\n" +
-      "RIGHT OUTER JOIN CHANGETABLE(CHANGES %3$s, @synchronization_version) AS " + CT_TABLE_NAME + "\n" +
-      "%4$s\n" +
-      "%5$s";
+      "SELECT * \n" +
+      "FROM %2$s AS P\n" +
+      "RIGHT OUTER JOIN CHANGETABLE(CHANGES %2$s, @synchronization_version) AS " + CT_TABLE_NAME + "\n" +
+      "%3$s\n" +
+      "%4$s";
 
-  private static final String CHANGE_TRACKING_QUERY = "SET NOCOUNT ON;\n" +
-      "SELECT TOP %1$s * \n" +
-          "FROM %2$s AS " + TABLE_NAME + "\n" +
-          "RIGHT OUTER JOIN CHANGETABLE(CHANGES %2$s, %3$s) AS " + CT_TABLE_NAME + "\n" +
+  private static final String CHANGE_TRACKING_QUERY = "SELECT * \n" +
+          "FROM %1$s AS " + TABLE_NAME + "\n" +
+          "RIGHT OUTER JOIN CHANGETABLE(CHANGES %1$s, %2$s) AS " + CT_TABLE_NAME + "\n" +
+          "%3$s\n" +
           "%4$s\n" +
-          "%5$s\n" +
-          "%6$s";
+          "%5$s\n";
 
-  private static final String SELECT_CT_CLAUSE = "SELECT TOP %s * FROM CHANGETABLE(CHANGES %s, %s) AS CT %s %s";
-  private static final String SELECT_CLAUSE = "SELECT * FROM %s ";
+  private static final String SELECT_CT_CLAUSE = "SELECT * FROM CHANGETABLE(CHANGES %s, %s) AS CT %s %s";
+  private static final String SELECT_CLAUSE = "SELECT TOP %d * " +
+      "FROM cdc.fn_cdc_get_all_changes_%s (@start_lsn, @to_lsn, N'all update old') ";
+  private static final String SELECT_TABLE_CLAUSE = "SELECT TOP %d * FROM cdc.%s_CT ";
 
   private static final Joiner COMMA_SPACE_JOINER = Joiner.on(", ");
   private static final Joiner AND_JOINER = Joiner.on(" AND ");
@@ -95,8 +95,8 @@ public final class MSQueryUtil {
     return CHANGE_TRACKING_CURRENT_VERSION_QUERY;
   }
 
-  public static String getMinVersion() {
-    return CHANGE_TRACKING_TABLE_QUERY;
+  public static String getMinVersion(String schema, String table) {
+    return String.format(CHANGE_TRACKING_TABLE_QUERY, schema, table);
   }
 
   public static String buildQuery(
@@ -104,7 +104,8 @@ public final class MSQueryUtil {
       int maxBatchSize, String tableName,
       Collection<String> offsetColumns,
       Map<String, String> startOffset,
-      boolean includeJoin
+      boolean includeJoin,
+      long offset
   ) {
     boolean isInitial = true;
 
@@ -130,6 +131,8 @@ public final class MSQueryUtil {
     String equal = String.format(ON_CLAUSE, AND_JOINER.join(equalCondition));
     String orderby = String.format(ORDER_BY_CLAUSE, COMMA_SPACE_JOINER.join(orderCondition));
 
+    long lastSysChangeVersion = offsetMap.get(SYS_CHANGE_VERSION) == null ? 0 : Long.parseLong(offsetMap.get(SYS_CHANGE_VERSION));
+
     if (!isInitial) {
       greaterCondition.add(String.format(COLUMN_EQUALS_VALUE, CT_TABLE_NAME + "." + SYS_CHANGE_VERSION, offsetMap.get(SYS_CHANGE_VERSION)));
       String condition1 = AND_JOINER.join(greaterCondition);
@@ -137,10 +140,20 @@ public final class MSQueryUtil {
       greater = String.format(WHERE_CLAUSE, String.format(OR_CLAUSE, condition1, condition2));
 
       if (includeJoin) {
-        return String.format(SELECT_CT_CLAUSE,
-            maxBatchSize,
+        return String.format(
+            CHANGE_TRACKING_QUERY,
             tableName,
-            startOffset.get(SYS_CHANGE_VERSION),
+            offset,
+            equal,
+            greater,
+            orderby
+        );
+
+      } else {
+        return String.format(
+            SELECT_CT_CLAUSE,
+            tableName,
+            offset,
             greater,
             orderby
         );
@@ -150,8 +163,7 @@ public final class MSQueryUtil {
     if (includeJoin) {
       return String.format(
           INIT_CHANGE_TRACKING_QUERY,
-          startOffset.get(SYS_CHANGE_VERSION),
-          maxBatchSize,
+          offset,
           tableName,
           equal,
           orderby
@@ -159,9 +171,8 @@ public final class MSQueryUtil {
     } else {
       return String.format(
           SELECT_CT_CLAUSE,
-          maxBatchSize,
           tableName,
-          startOffset.get(SYS_CHANGE_VERSION),
+          offset,
           greater,
           orderby
       );
@@ -173,10 +184,17 @@ public final class MSQueryUtil {
       String tableName,
       Map<String, String> startOffset,
       boolean allowLateTable,
-      boolean enableSchemaChanges
+      boolean enableSchemaChanges,
+      int fetchSize,
+      boolean useTable,
+      int txnWindow
   ) {
     String captureInstanceName = tableName.substring("cdc.".length(), tableName.length() - "_CT".length());
     StringBuilder query = new StringBuilder();
+    String declare_from_lsn;
+    String declare_to_lsn;
+    String declare_to_lsn2 = "";
+    String where_clause;
 
     // check the existing of CDC table
     if (allowLateTable) {
@@ -186,23 +204,72 @@ public final class MSQueryUtil {
       query.append("\n");
     }
 
-    query.append(String.format(SELECT_CLAUSE, tableName));
+    // initial offset
+    if (offsetMap.get(CDC_START_LSN) == null) {
+      String condition = "";
+      if (startOffset.get(CDC_START_LSN) == null) {
+        declare_from_lsn = String.format("DECLARE @start_lsn binary(10) = sys.fn_cdc_get_min_lsn (N'%s')",
+            captureInstanceName
+        );
+        condition = "__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn";
+      } else {
 
-    if (offsetMap == null || offsetMap.size() < 1) {
-      // initial offset
-      if (startOffset != null && startOffset.containsKey(CDC_START_LSN)) {
-        String condition = String.format(BINARY_COLUMN_GREATER_THAN_CLAUSE, CDC_START_LSN, startOffset.get(CDC_START_LSN));
-        query.append(String.format(WHERE_CLAUSE, condition));
+        if (startOffset.get(CDC_START_LSN).equals("-1")) {
+          declare_from_lsn = String.format("DECLARE @start_lsn binary(10) = sys.fn_cdc_get_max_lsn(); ");
+
+          condition = "__$start_lsn >= @start_lsn and __$start_lsn <= @to_lsn";
+        } else {
+          declare_from_lsn = String.format(
+              "DECLARE @start_lsn binary(10) " + "= sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); ",
+              startOffset.get(CDC_START_LSN)
+          );
+          condition = "__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn";
+        }
       }
+
+      where_clause = String.format(WHERE_CLAUSE, condition);
+
     } else {
+      declare_from_lsn = String.format("DECLARE @start_lsn binary(10) " +
+              "= sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); ",
+          offsetMap.get(CDC_START_LSN));
+
       String condition1 = String.format(
           AND_CLAUSE,
-          String.format(BINARY_COLUMN_EQUALS_CLAUSE, CDC_START_LSN,offsetMap.get(CDC_START_LSN)),
+          String.format(BINARY_COLUMN_EQUALS_CLAUSE, CDC_START_LSN,  offsetMap.get(CDC_START_LSN)),
           String.format(BINARY_COLUMN_GREATER_THAN_CLAUSE, CDC_SEQVAL, offsetMap.get(CDC_SEQVAL))
       );
-      String condition2 = String.format(BINARY_COLUMN_GREATER_THAN_CLAUSE, CDC_START_LSN, offsetMap.get(CDC_START_LSN));
-      query.append(String.format(WHERE_CLAUSE, String.format(OR_CLAUSE, condition1, condition2)));
+
+      String condition2 = "__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn";
+
+      where_clause = String.format(WHERE_CLAUSE, String.format(OR_CLAUSE, condition1, condition2));
     }
+
+    if (txnWindow > 0) {
+      declare_to_lsn = String.format(
+          "DECLARE @to_lsn binary(10) = " + "sys.fn_cdc_map_time_to_lsn('largest less than or equal', " +
+              "DATEADD(second, %s, sys.fn_cdc_map_lsn_to_time(@start_lsn))); ",
+          txnWindow
+      );
+      declare_to_lsn2 = String.format("IF @start_lsn = @to_lsn " +
+          "SET @to_lsn = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); ");
+    } else {
+      declare_to_lsn = String.format("DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); ");
+    }
+
+
+    query.append(declare_from_lsn);
+    query.append(declare_to_lsn);
+    query.append(declare_to_lsn2);
+
+    if (useTable) {
+      query.append(String.format(SELECT_TABLE_CLAUSE, fetchSize, captureInstanceName));
+    } else {
+      query.append(String.format(SELECT_CLAUSE, fetchSize, captureInstanceName));
+    }
+
+
+    query.append(where_clause);
 
     query.append(String.format(ORDER_BY_CLAUSE, COMMA_SPACE_JOINER.join(ImmutableList.of(CDC_START_LSN, CDC_SEQVAL))));
 

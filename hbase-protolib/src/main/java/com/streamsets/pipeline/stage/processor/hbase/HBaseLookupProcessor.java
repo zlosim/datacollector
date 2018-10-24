@@ -37,7 +37,7 @@ import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.hbase.common.Errors;
 import com.streamsets.pipeline.lib.hbase.common.HBaseColumn;
-import com.streamsets.pipeline.lib.hbase.common.HBaseUtil;
+import com.streamsets.pipeline.lib.hbase.common.HBaseConnectionHelper;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.processor.kv.LookupMode;
@@ -78,6 +78,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
   private HBaseStore store;
   private LoadingCache<Pair<String, HBaseColumn>, Optional<String>> cache;
   private CacheCleaner cacheCleaner;
+  private HBaseConnectionHelper hbaseConnectionHelper;
 
   public HBaseLookupProcessor(HBaseLookupConfig conf) {
     if (null != conf.hBaseConnectionConfig.zookeeperQuorum) {
@@ -85,6 +86,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
         CharMatcher.WHITESPACE.removeFrom(conf.hBaseConnectionConfig.zookeeperQuorum);
     }
     this.conf = conf;
+    this.hbaseConnectionHelper = new HBaseConnectionHelper();
   }
 
   @SuppressWarnings("unchecked")
@@ -114,42 +116,27 @@ public class HBaseLookupProcessor extends BaseProcessor {
             Errors.HBASE_35
         ));
       } else {
-        ELUtils.validateExpression(
-            keyExprEval,
-            getContext().createELVars(),
-            lookup.rowExpr,
+        ELUtils.validateExpression(lookup.rowExpr,
             getContext(),
             Groups.HBASE.getLabel(),
             lookup.rowExpr,
-            Errors.HBASE_38,
-            String.class,
-            issues
+            Errors.HBASE_38, issues
         );
       }
 
       // Column and timestamps are optional
-      ELUtils.validateExpression(
-          columnExprEval,
-          getContext().createELVars(),
-          lookup.columnExpr,
+      ELUtils.validateExpression(lookup.columnExpr,
           getContext(),
           Groups.HBASE.getLabel(),
           lookup.columnExpr,
-          Errors.HBASE_38,
-          String.class,
-          issues
+          Errors.HBASE_38, issues
       );
 
-      ELUtils.validateExpression(
-          timestampExprEval,
-          getContext().createELVars(),
-          lookup.timestampExpr,
+      ELUtils.validateExpression(lookup.timestampExpr,
           getContext(),
           Groups.HBASE.getLabel(),
           lookup.timestampExpr,
-          Errors.HBASE_38,
-          Date.class,
-          issues
+          Errors.HBASE_38, issues
       );
 
       if(lookup.outputFieldPath.length() < 1) {
@@ -162,7 +149,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
     }
 
     if(issues.isEmpty()) {
-      hbaseConf = HBaseUtil.getHBaseConfiguration(issues,
+      hbaseConf = hbaseConnectionHelper.getHBaseConfiguration(issues,
           getContext(),
           Groups.HBASE.getLabel(),
           conf.hBaseConnectionConfig.hbaseConfDir,
@@ -170,7 +157,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
           conf.hBaseConnectionConfig.hbaseConfigs
       );
 
-      HBaseUtil.validateQuorumConfigs(issues,
+      HBaseConnectionHelper.validateQuorumConfigs(issues,
           getContext(),
           Groups.HBASE.getLabel(),
           conf.hBaseConnectionConfig.zookeeperQuorum,
@@ -178,7 +165,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
           conf.hBaseConnectionConfig.clientPort
       );
 
-      HBaseUtil.validateSecurityConfigs(issues,
+      hbaseConnectionHelper.validateSecurityConfigs(issues,
           getContext(),
           Groups.HBASE.getLabel(),
           conf.hBaseConnectionConfig.hbaseUser,
@@ -188,14 +175,15 @@ public class HBaseLookupProcessor extends BaseProcessor {
     }
 
     if(issues.isEmpty()) {
-      HBaseUtil.setIfNotNull(hbaseConf, HConstants.ZOOKEEPER_QUORUM, conf.hBaseConnectionConfig.zookeeperQuorum);
+      HBaseConnectionHelper.setIfNotNull(hbaseConf, HConstants.ZOOKEEPER_QUORUM, conf.hBaseConnectionConfig.zookeeperQuorum);
       hbaseConf.setInt(HConstants.ZOOKEEPER_CLIENT_PORT, conf.hBaseConnectionConfig.clientPort);
-      HBaseUtil.setIfNotNull(hbaseConf, HConstants.ZOOKEEPER_ZNODE_PARENT, conf.hBaseConnectionConfig.zookeeperParentZNode);
+      HBaseConnectionHelper.setIfNotNull(hbaseConf, HConstants.ZOOKEEPER_ZNODE_PARENT, conf.hBaseConnectionConfig.zookeeperParentZNode);
     }
 
     if (issues.isEmpty()) {
       try {
-        HBaseUtil.getUGI().doAs((PrivilegedExceptionAction<HTableDescriptor>) () -> HBaseUtil.checkConnectionAndTableExistence(
+        hbaseConnectionHelper.getUGI().doAs((PrivilegedExceptionAction<HTableDescriptor>) () -> HBaseConnectionHelper
+            .checkConnectionAndTableExistence(
           issues,
           getContext(),
           hbaseConf,
@@ -210,7 +198,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
 
     if(issues.isEmpty()) {
       try {
-        HBaseUtil.getUGI().doAs((PrivilegedExceptionAction<Void>) () -> {
+        hbaseConnectionHelper.getUGI().doAs((PrivilegedExceptionAction<Void>) () -> {
           keyExprEval = getContext().createELEval("rowExpr");
           store = new HBaseStore(conf, hbaseConf);
           return null;
@@ -254,7 +242,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
     super.destroy();
     if(store != null) {
       try {
-        HBaseUtil.getUGI().doAs((PrivilegedExceptionAction<Void>) () -> {
+        hbaseConnectionHelper.getUGI().doAs((PrivilegedExceptionAction<Void>) () -> {
           store.close();
           return null;
         });
@@ -278,7 +266,8 @@ public class HBaseLookupProcessor extends BaseProcessor {
           final Pair<String, HBaseColumn> key = getKey(record, parameter);
 
           if (key != null && !key.getKey().trim().isEmpty()) {
-            Optional<String> value = HBaseUtil.getUGI().doAs((PrivilegedExceptionAction<Optional<String>>) () -> cache.getUnchecked(key));
+            Optional<String> value = hbaseConnectionHelper.getUGI().doAs((PrivilegedExceptionAction<Optional<String>>) () -> cache
+                .getUnchecked(key));
             updateRecord(record, parameter, key, value);
           } else {
             handleEmptyKey(record, key);
@@ -288,7 +277,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
         LOG.error(Errors.HBASE_38.getMessage(), e1.toString(), e1);
         errorRecordHandler.onError(new OnRecordErrorException(record, Errors.HBASE_38, e1.toString()));
       } catch (IOException | InterruptedException | UncheckedExecutionException e) {
-        HBaseUtil.handleHBaseException(e, ImmutableList.of(record).iterator(), errorRecordHandler);
+        HBaseConnectionHelper.handleHBaseException(e, ImmutableList.of(record).iterator(), errorRecordHandler);
       }
 
       batchMaker.addRecord(record);
@@ -300,7 +289,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
     final Set<Pair<String, HBaseColumn>> keys = getKeyColumnListMap(batch);
 
     try {
-      Map<Pair<String, HBaseColumn>, Optional<String>> values = HBaseUtil.getUGI()
+      Map<Pair<String, HBaseColumn>, Optional<String>> values = hbaseConnectionHelper.getUGI()
         .doAs((PrivilegedExceptionAction<ImmutableMap<Pair<String, HBaseColumn>, Optional<String>>>) () -> cache.getAll(keys));
       Record record;
       while (records.hasNext()) {
@@ -309,7 +298,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
           Pair<String, HBaseColumn> key = getKey(record, parameter);
 
           if (key != null && !key.getKey().trim().isEmpty()) {
-            Optional<String> value = HBaseUtil.getUGI().doAs((PrivilegedExceptionAction<Optional<String>>) () -> cache.getUnchecked(key));
+            Optional<String> value = values.get(key);
             updateRecord(record, parameter, key, value);
           } else {
             handleEmptyKey(record, key);
@@ -325,7 +314,7 @@ public class HBaseLookupProcessor extends BaseProcessor {
         errorRecordHandler.onError(new OnRecordErrorException(record, Errors.HBASE_38, e1.toString()));
       }
     } catch (IOException | InterruptedException | UndeclaredThrowableException e2) {
-      HBaseUtil.handleHBaseException(e2, records, errorRecordHandler);
+      HBaseConnectionHelper.handleHBaseException(e2, records, errorRecordHandler);
     }
   }
 

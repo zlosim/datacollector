@@ -27,7 +27,6 @@ import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.cache.CacheCleaner;
 import com.streamsets.pipeline.lib.el.ELUtils;
-import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.JDBCOperationType;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
@@ -36,6 +35,7 @@ import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnParamMapping;
 import com.streamsets.pipeline.lib.jdbc.JdbcRecordReaderWriterFactory;
 import com.streamsets.pipeline.lib.jdbc.JdbcRecordWriter;
 import com.streamsets.pipeline.lib.jdbc.JdbcUtil;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
@@ -44,7 +44,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
@@ -67,6 +66,7 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
   private final List<JdbcFieldColumnParamMapping> customMappings;
   private final List<JdbcFieldColumnMapping> generatedColumnMappings;
   private final boolean caseSensitive;
+  private final boolean dynamicTableName;
 
   private final ChangeLogFormat changeLogFormat;
   private final HikariPoolConfigBean hikariConfigBean;
@@ -77,7 +77,6 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
 
   private ErrorRecordHandler errorRecordHandler;
   private HikariDataSource dataSource = null;
-  private Connection connection = null;
 
   private JDBCOperationType defaultOperation;
   private UnsupportedOperationAction unsupportedAction;
@@ -110,6 +109,7 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
     this.hikariConfigBean = hikariConfigBean;
     this.defaultOperation = defaultOp;
     this.unsupportedAction = unsupportedAction;
+    this.dynamicTableName = JdbcUtil.isElString(tableNameTemplate);
 
     CacheBuilder cacheBuilder = CacheBuilder.newBuilder()
         .maximumSize(500)
@@ -128,7 +128,7 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
     @Override
     public JdbcRecordWriter load(String tableName) throws Exception {
       return JdbcRecordReaderWriterFactory.createJdbcRecordWriter(
-          hikariConfigBean.connectionString,
+          hikariConfigBean.getConnectionString(),
           dataSource,
           schema,
           tableName,
@@ -138,7 +138,7 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
           useMultiRowOp,
           maxPrepStmtParameters,
           maxPrepStmtCache,
-          defaultOperation,
+          defaultOperation.getCode(),
           unsupportedAction,
           JdbcRecordReaderWriterFactory.createRecordReader(changeLogFormat),
           caseSensitive
@@ -159,22 +159,22 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
 
     issues = hikariConfigBean.validateConfigs(context, issues);
 
-    if (hikariConfigBean.connectionString.toLowerCase().startsWith("jdbc:sqlserver") && useMultiRowOp) {
+    if (hikariConfigBean.getConnectionString().toLowerCase().startsWith("jdbc:sqlserver") && useMultiRowOp) {
       issues.add(getContext().createConfigIssue(Groups.JDBC.name(), MULTI_ROW_OP, JdbcErrors.JDBC_57));
     }
 
-    tableNameVars = getContext().createELVars();
-    tableNameEval = context.createELEval(JdbcUtil.TABLE_NAME);
-    ELUtils.validateExpression(tableNameEval,
-        tableNameVars,
-        tableNameTemplate,
-        getContext(),
-        Groups.JDBC.getLabel(),
-        JdbcUtil.TABLE_NAME,
-        JdbcErrors.JDBC_26,
-        String.class,
-        issues
-    );
+    if (dynamicTableName) {
+      tableNameVars = getContext().createELVars();
+      tableNameEval = context.createELEval(JdbcUtil.TABLE_NAME);
+      ELUtils.validateExpression(
+          tableNameTemplate,
+          getContext(),
+          Groups.JDBC.getLabel(),
+          JdbcUtil.TABLE_NAME,
+          JdbcErrors.JDBC_26,
+          issues
+      );
+    }
 
     if (issues.isEmpty() && null == dataSource) {
       try {
@@ -196,10 +196,8 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
     return issues;
   }
 
-  /** {@inheritDoc} */
   @Override
   public void destroy() {
-    JdbcUtil.closeQuietly(connection);
     JdbcUtil.closeQuietly(dataSource);
     super.destroy();
   }
@@ -215,11 +213,23 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
     boolean perRecord = false;
     // MS SQL Server does not support returning generateKey after executeBatch
     // Instead of executeBatch, do executeUpdate per record
-    if (hikariConfigBean.connectionString.toLowerCase().startsWith("jdbc:sqlserver")) {
+    if (hikariConfigBean.getConnectionString().toLowerCase().startsWith("jdbc:sqlserver")) {
       perRecord = true;
     }
 
-    JdbcUtil.write(batch, schema, tableNameEval, tableNameVars, tableNameTemplate, caseSensitive, recordWriters, errorRecordHandler, perRecord);
+    if (dynamicTableName) {
+      JdbcUtil.write(
+          batch,
+          tableNameEval,
+          tableNameVars,
+          tableNameTemplate,
+          recordWriters,
+          errorRecordHandler,
+          perRecord
+      );
+    } else {
+      JdbcUtil.write(batch.getRecords(), tableNameTemplate, recordWriters, errorRecordHandler, perRecord);
+    }
 
     Iterator<Record> it = batch.getRecords();
     while (it.hasNext()) {

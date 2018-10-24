@@ -41,6 +41,7 @@ import io.netty.channel.epoll.Epoll;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.apache.avro.ipc.NettyServer;
 import org.apache.avro.ipc.specific.SpecificResponder;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -185,7 +186,7 @@ public class TCPServerSource extends BasePushSource {
           public void initChannel(SocketChannel ch) throws Exception {
             if (config.tlsConfigBean.isEnabled()) {
               // Add TLS handler into pipeline in the first position
-              ch.pipeline().addFirst("TLS", new SslHandler(config.tlsConfigBean.getSslEngine()));
+              ch.pipeline().addFirst("TLS", new SslHandler(config.tlsConfigBean.createSslEngine()));
             }
 
             ch.pipeline().addLast(
@@ -210,6 +211,12 @@ public class TCPServerSource extends BasePushSource {
                     Charset.forName(config.ackMessageCharset)
                 )
             );
+
+            if (config.readTimeout > 0) {
+              ch.pipeline().addLast(
+                new ReadTimeoutHandler(config.readTimeout)
+              );
+            }
           }
         }
     );
@@ -257,16 +264,11 @@ public class TCPServerSource extends BasePushSource {
       Record validationRecord = getContext().createRecord("recordProcessedAckMessageValidationRecord");
       RecordEL.setRecordInContext(vars, validationRecord);
 
-      ELUtils.validateExpression(
-          eval,
-          vars,
-          config.recordProcessedAckMessage,
+      ELUtils.validateExpression(config.recordProcessedAckMessage,
           getContext(),
           Groups.TCP.name(),
           CONF_PREFIX + "recordProcessedAckMessage",
-          Errors.TCP_30,
-          String.class,
-          issues
+          Errors.TCP_30, issues
       );
     }
 
@@ -280,16 +282,11 @@ public class TCPServerSource extends BasePushSource {
       Record validationRecord = getContext().createRecord("batchCompletedAckMessageValidationRecord");
       RecordEL.setRecordInContext(vars, validationRecord);
 
-      ELUtils.validateExpression(
-          eval,
-          vars,
-          config.batchCompletedAckMessage,
+      ELUtils.validateExpression(config.batchCompletedAckMessage,
           getContext(),
           Groups.TCP.name(),
           CONF_PREFIX + "batchCompletedAckMessage",
-          Errors.TCP_31,
-          String.class,
-          issues
+          Errors.TCP_31, issues
       );
     }
 

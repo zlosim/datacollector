@@ -15,8 +15,8 @@
  */
 package com.streamsets.datacollector.http;
 
-import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.jmx.JmxReporter;
 import com.streamsets.datacollector.activation.Activation;
 import com.streamsets.datacollector.activation.ActivationLoader;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
@@ -57,6 +57,7 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.CrossOriginFilter;
+import org.eclipse.jetty.servlets.HeaderFilter;
 import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
 import org.glassfish.jersey.servlet.ServletProperties;
@@ -142,6 +143,18 @@ public class WebServerModule {
       @Override
       public void init(ServletContextHandler context) {
         FilterHolder filter = new FilterHolder(new MDCFilter());
+        context.addFilter(filter, "/*", EnumSet.of(DispatcherType.REQUEST));
+      }
+    };
+  }
+
+  @Provides(type = Type.SET)
+  ContextConfigurator provideHeaderFilter() {
+    return new ContextConfigurator() {
+      @Override
+      public void init(ServletContextHandler context) {
+        FilterHolder filter = new FilterHolder(new HeaderFilter());
+        filter.setInitParameter("headerConfig", "set X-Frame-Options: DENY");
         context.addFilter(filter, "/*", EnumSet.of(DispatcherType.REQUEST));
       }
     };

@@ -30,6 +30,7 @@ import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnMapping;
 import com.streamsets.pipeline.stage.common.MissingValuesBehavior;
 import com.streamsets.pipeline.stage.common.MissingValuesBehaviorChooserValues;
 import com.streamsets.pipeline.stage.common.MultipleValuesBehavior;
+import com.streamsets.pipeline.stage.common.MultipleValuesBehaviorChooserValues;
 import com.streamsets.pipeline.stage.destination.jdbc.Groups;
 import com.streamsets.pipeline.stage.processor.kv.CacheConfig;
 
@@ -81,14 +82,14 @@ public class JdbcLookupDProcessor extends DProcessor {
       displayPosition = 35,
       group = "JDBC"
   )
-  @ValueChooserModel(JdbcLookupMultipleValuesBehaviorChooserValues.class)
+  @ValueChooserModel(MultipleValuesBehaviorChooserValues.class)
   public MultipleValuesBehavior multipleValuesBehavior = MultipleValuesBehavior.DEFAULT;
 
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
       label = "Missing Values Behavior",
-      description = "How to handle missing values",
+      description = "How to handle missing values when no default value is defined.",
       defaultValue = "PASS_RECORD_ON",
       displayPosition = 37,
       group = "JDBC"

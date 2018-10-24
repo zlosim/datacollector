@@ -19,6 +19,7 @@ import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.api.service.ServiceConfiguration;
@@ -30,13 +31,14 @@ import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorServic
   label="Data Generator",
   description = "Serializes records to various different data formats.",
   icon="coding.png",
+  flags = StageBehaviorFlags.PURE_FUNCTION,
   services = @ServiceDependency(
     service = DataFormatGeneratorService.class,
     configuration = {
       @ServiceConfiguration(name = "displayFormats", value = "AVRO,BINARY,DELIMITED,JSON,PROTOBUF,TEXT,SDC_JSON,XML")
     }
   ),
-  onlineHelpRefUrl = "" // TODO(Add proper link)
+  onlineHelpRefUrl = "index.html?contextID=task_aw1_hq4_3fb"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
