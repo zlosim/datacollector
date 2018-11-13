@@ -19,7 +19,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector</artifactId>
-  <version>3.6.0-SNAPSHOT</version>
+  <version>3.7.0-SNAPSHOT</version>
   <description>StreamSets Data Collector</description>
   <name>StreamSets Data Collector</name>
   <packaging>pom</packaging>
@@ -89,8 +89,8 @@
     <wholefile-transformer-lib>wholefile-transformer-lib</wholefile-transformer-lib>
     <windows-lib>windows-lib</windows-lib>
     <rootProject>true</rootProject>
-    <datacollector-api.version>3.6.0-SNAPSHOT</datacollector-api.version>
-    <datacollector-spark-api.version>3.6.0-SNAPSHOT</datacollector-spark-api.version>
+    <datacollector-api.version>3.7.0-SNAPSHOT</datacollector-api.version>
+    <datacollector-spark-api.version>3.7.0-SNAPSHOT</datacollector-spark-api.version>
   </properties>
 
   <!-- StreamSets Data Collector API being used -->
@@ -166,6 +166,7 @@
     <module>sdc-kafka_0_9_mapr_5_1</module>
     <module>sdc-kafka_0_9_mapr_5_2</module>
     <module>sdc-kafka_0_10</module>
+    <module>sdc-kafka_0_11-common</module>
     <module>sdc-kafka_0_11</module>
     <module>sdc-kafka_1_0</module>
     <module>kafka-common</module>
@@ -194,6 +195,9 @@
     <module>flume-protolib</module>
 
     <module>cluster-hdfs-protolib</module>
+    <module>sdc-hbase-0_98</module>
+    <module>sdc-hbase-2_0</module>
+    <module>sdc-hbase-api</module>
     <module>hbase-protolib</module>
     <module>kudu-protolib</module>
     <module>cluster-common</module>

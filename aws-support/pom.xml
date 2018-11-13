@@ -23,18 +23,18 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root-lib</artifactId>
-    <version>3.6.0-SNAPSHOT</version>
+    <version>3.7.0-SNAPSHOT</version>
     <relativePath>../root-lib</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-aws-support</artifactId>
-  <version>3.6.0-SNAPSHOT</version>
+  <version>3.7.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Amazon AWS Support</description>
   <name>StreamSets Data Collector Amazon AWS Support</name>
   <packaging>jar</packaging>
 
-
   <properties>
     <awssdk.version>1.11.385</awssdk.version>
+    <apache-http.version>4.5.5</apache-http.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -68,6 +68,11 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-s3</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+      <version>${apache-http.version}</version>
     </dependency>
 
     <!-- Test Dependencies -->
