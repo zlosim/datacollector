@@ -805,6 +805,7 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
         ImmutableList.Builder<Future<?>> taskBuilder = ImmutableList.builder();
 
         ProductionObserver productionObserver = (ProductionObserver) objectGraph.get(Observer.class);
+        productionObserver.setPipelineStartTime(getState().getTimeStamp());
         RulesConfigLoader rulesConfigLoader = objectGraph.get(RulesConfigLoader.class);
         RulesConfigLoaderRunnable rulesConfigLoaderRunnable = objectGraph.get(RulesConfigLoaderRunnable.class);
         MetricObserverRunnable metricObserverRunnable = objectGraph.get(MetricObserverRunnable.class);
@@ -931,11 +932,16 @@ public class StandaloneRunner extends AbstractRunner implements StateListener {
       int batches,
       int batchSize
   ) throws PipelineException, StageException {
-    startPipeline(context);
-    captureSnapshot(context.getUser(), snapshotName, snapshotLabel, batches, batchSize, false);
-    LOG.debug("Starting the runnable for pipeline {} {}", getName(), getRev());
-    if(!pipelineRunnable.isStopped()) {
-      pipelineRunnable.run();
+    try {
+      startPipeline(context);
+      captureSnapshot(context.getUser(), snapshotName, snapshotLabel, batches, batchSize, false);
+      LOG.debug("Starting the runnable for pipeline {} {}", getName(), getRev());
+      if (!pipelineRunnable.isStopped()) {
+        pipelineRunnable.run();
+      }
+    } catch (Exception e) {
+      validateAndSetStateTransition(context.getUser(), PipelineStatus.START_ERROR, e.toString(), null);
+      throw e;
     }
   }
 

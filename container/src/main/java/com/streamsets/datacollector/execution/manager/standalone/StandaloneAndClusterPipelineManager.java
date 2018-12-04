@@ -88,9 +88,9 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
 
   private Cache<String, RunnerInfo> runnerCache;
   private Cache<String, Previewer> previewerCache;
-  static final long DEFAULT_RUNNER_EXPIRY_INTERVAL = 60*60*1000;
+  static final long DEFAULT_RUNNER_EXPIRY_INTERVAL = 5*60*1000;
   static final String RUNNER_EXPIRY_INTERVAL = "runner.expiry.interval";
-  static final long DEFAULT_RUNNER_EXPIRY_INITIAL_DELAY = 30*60*1000;
+  static final long DEFAULT_RUNNER_EXPIRY_INITIAL_DELAY = 5*60*1000;
   static final String RUNNER_EXPIRY_INITIAL_DELAY = "runner.expiry.initial.delay";
   static final boolean DEFAULT_RUNNER_RESTART_PIPELINES = true;
   static final String RUNNER_RESTART_PIPELINES = "runner.boot.pipeline.restart";
@@ -278,8 +278,24 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
               runner.getState());
             removeRunnerIfNotActive(runner);
           } catch (PipelineStoreException ex) {
-            LOG.warn("Cannot remove runner for pipeline: '{}::{}' due to '{}'", runner.getName(), runner.getRev(),
-              ex.toString(), ex);
+            if (ex.getErrorCode() == ContainerError.CONTAINER_0209) {
+              LOG.debug(
+                  "Pipeline state file for pipeline: '{}::{}' was already deleted; removing runner from cache",
+                  runner.getName(),
+                  runner.getRev(),
+                  ex.toString(),
+                  ex
+              );
+              runnerCache.invalidate(getNameAndRevString(runner.getName(), runner.getRev()));
+            } else {
+              LOG.warn(
+                  "Cannot remove runner for pipeline: '{}::{}' due to '{}'; memory leak is possible",
+                  runner.getName(),
+                  runner.getRev(),
+                  ex.toString(),
+                  ex
+              );
+            }
           }
         }
       }
@@ -307,28 +323,34 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
 
   @Override
   public void stopTask() {
-    for (RunnerInfo runnerInfo : runnerCache.asMap().values()) {
-      Runner runner = runnerInfo.runner;
-      try {
-        runner.close();
-        PipelineState pipelineState = pipelineStateStore.getState(runner.getName(), runner.getRev());
-        runner.onDataCollectorStop(pipelineState.getUser());
-      } catch (Exception e) {
-        LOG.warn("Failed to stop the runner for pipeline: {} and rev: {} due to: {}", runner.getName(),
-          runner.getRev(), e.toString(), e);
+    if(runnerCache != null) {
+      for (RunnerInfo runnerInfo : runnerCache.asMap().values()) {
+        Runner runner = runnerInfo.runner;
+        try {
+          runner.close();
+          PipelineState pipelineState = pipelineStateStore.getState(runner.getName(), runner.getRev());
+          runner.onDataCollectorStop(pipelineState.getUser());
+        } catch (Exception e) {
+          LOG.warn("Failed to stop the runner for pipeline: {} and rev: {} due to: {}", runner.getName(),
+            runner.getRev(), e.toString(), e);
+        }
+      }
+      runnerCache.invalidateAll();
+      for (Previewer previewer : previewerCache.asMap().values()) {
+        try {
+          previewer.stop();
+        } catch (Exception e) {
+          LOG.warn("Failed to stop the previewer: {}::{}::{} due to: {}", previewer.getName(),
+            previewer.getRev(), previewer.getId(), e.toString(), e);
+        }
       }
     }
-    runnerCache.invalidateAll();
-    for (Previewer previewer : previewerCache.asMap().values()) {
-      try {
-        previewer.stop();
-      } catch (Exception e) {
-        LOG.warn("Failed to stop the previewer: {}::{}::{} due to: {}", previewer.getName(),
-          previewer.getRev(), previewer.getId(), e.toString(), e);
-      }
+    if(previewerCache != null) {
+      previewerCache.invalidateAll();
     }
-    previewerCache.invalidateAll();
-    runnerExpiryFuture.cancel(true);
+    if(runnerExpiryFuture != null) {
+      runnerExpiryFuture.cancel(true);
+    }
     LOG.info("Stopped Production Pipeline Manager");
   }
 
