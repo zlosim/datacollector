@@ -16,6 +16,8 @@
 package com.streamsets.datacollector.creation;
 
 import com.streamsets.datacollector.config.AmazonEMRConfig;
+import com.streamsets.datacollector.config.ClusterConfig;
+import com.streamsets.datacollector.config.DatabricksConfig;
 import com.streamsets.datacollector.config.DeliveryGuaranteeChooserValues;
 import com.streamsets.datacollector.config.ErrorHandlingChooserValues;
 import com.streamsets.datacollector.config.ErrorRecordPolicy;
@@ -23,8 +25,6 @@ import com.streamsets.datacollector.config.ErrorRecordPolicyChooserValues;
 import com.streamsets.datacollector.config.ExecutionModeChooserValues;
 import com.streamsets.datacollector.config.LogLevel;
 import com.streamsets.datacollector.config.LogLevelChooserValues;
-import com.streamsets.datacollector.config.MemoryLimitExceeded;
-import com.streamsets.datacollector.config.MemoryLimitExceededChooserValues;
 import com.streamsets.datacollector.config.PipelineGroups;
 import com.streamsets.datacollector.config.PipelineLifecycleStageChooserValues;
 import com.streamsets.datacollector.config.PipelineState;
@@ -62,7 +62,7 @@ import java.util.Map;
 @ConfigGroups(PipelineGroups.class)
 public class PipelineConfigBean implements Stage {
 
-  public static final int VERSION = 11;
+  public static final int VERSION = 13;
 
   public static final String DEFAULT_STATS_AGGREGATOR_LIBRARY_NAME = "streamsets-datacollector-basic-lib";
 
@@ -118,7 +118,9 @@ public class PipelineConfigBean implements Stage {
       type = ConfigDef.Type.MODEL,
       defaultValue="AT_LEAST_ONCE",
       label = "Delivery Guarantee",
-      displayPosition = 20
+      displayPosition = 20,
+      dependsOn = "executionMode",
+      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING", "EDGE", "EMR_BATCH"}
   )
   @ValueChooserModel(DeliveryGuaranteeChooserValues.class)
   public DeliveryGuarantee deliveryGuarantee;
@@ -129,7 +131,9 @@ public class PipelineConfigBean implements Stage {
       label = "Test Origin",
       description = "Stage used for testing in preview mode.",
       defaultValue = RAW_DATA_ORIGIN,
-      displayPosition = 21
+      displayPosition = 21,
+      dependsOn = "executionMode",
+      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING", "EDGE", "EMR_BATCH"}
   )
   @ValueChooserModel(PipelineTestStageChooserValues.class)
   public String testOriginStage;
@@ -185,35 +189,6 @@ public class PipelineConfigBean implements Stage {
   public int retryAttempts;
 
   @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
-      label = "Max Pipeline Memory (MB)",
-      defaultValue = "${jvm:maxMemoryMB() * 0.85}",
-      description = "Maximum amount of memory the pipeline can use. Configure in relationship to the SDC Java heap " +
-          "size. The default is 85% of heap and a value of 0 disables the limit.",
-      displayPosition = 60,
-      min = 0,
-      dependsOn = "executionMode",
-      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING"}
-  )
-  public long memoryLimit;
-
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.MODEL,
-      defaultValue="LOG",
-      label = "On Memory Exceeded",
-      description = "Behavior when the pipeline exceeds the memory limit. Tip: Configure an alert to indicate when the " +
-          "memory use approaches the limit." ,
-      displayPosition = 70,
-      dependsOn = "executionMode",
-      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING"}
-  )
-  @ValueChooserModel(MemoryLimitExceededChooserValues.class)
-  public MemoryLimitExceeded memoryLimitExceeded;
-
-  @ConfigDef(
       required = false,
       type = ConfigDef.Type.MODEL,
       defaultValue = "[\"RUN_ERROR\", \"STOPPED\", \"FINISHED\"]",
@@ -256,7 +231,9 @@ public class PipelineConfigBean implements Stage {
       type = ConfigDef.Type.MODEL,
       label = "Error Records",
       displayPosition = 90,
-      group = "BAD_RECORDS"
+      group = "BAD_RECORDS",
+      dependsOn = "executionMode",
+      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING", "EDGE", "EMR_BATCH"}
   )
   @ValueChooserModel(ErrorHandlingChooserValues.class)
   public String badRecordsHandling;
@@ -268,7 +245,9 @@ public class PipelineConfigBean implements Stage {
       label = "Error Record Policy",
       description = "Determines which variation of the record is sent to error.",
       displayPosition = 93,
-      group = "BAD_RECORDS"
+      group = "BAD_RECORDS",
+      dependsOn = "executionMode",
+      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING", "EDGE", "EMR_BATCH"}
   )
   @ValueChooserModel(ErrorRecordPolicyChooserValues.class)
   public ErrorRecordPolicy errorRecordPolicy = ErrorRecordPolicy.ORIGINAL_RECORD;
@@ -279,7 +258,9 @@ public class PipelineConfigBean implements Stage {
       label = "Statistics Aggregator",
       defaultValue = STATS_DPM_DIRECTLY_TARGET,
       displayPosition = 95,
-      group = "STATS"
+      group = "STATS",
+      dependsOn = "executionMode",
+      triggeredByValue =  {"STANDALONE", "CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "CLUSTER_MESOS_STREAMING", "EDGE", "EMR_BATCH"}
   )
   @ValueChooserModel(StatsTargetChooserValues.class)
   public String statsAggregatorStage = STATS_DPM_DIRECTLY_TARGET;
@@ -353,11 +334,12 @@ public class PipelineConfigBean implements Stage {
       required = true,
       type = ConfigDef.Type.MODEL,
       defaultValue = "INFO",
-      label = "Log level",
+      label = "Log Level",
+      description = "Log level to use for the launched application",
       displayPosition = 140,
       group = "CLUSTER",
       dependsOn = "executionMode",
-      triggeredByValue = {"EMR_BATCH"}
+      triggeredByValue = {"EMR_BATCH", "BATCH", "STREAMING"}
   )
   @ValueChooserModel(LogLevelChooserValues.class)
   public LogLevel logLevel;
@@ -451,9 +433,15 @@ public class PipelineConfigBean implements Stage {
       displayPosition = 220,
       group = "CLUSTER",
       dependsOn = "executionMode",
-      triggeredByValue = {"CLUSTER_YARN_STREAMING"}
+      triggeredByValue = {"CLUSTER_BATCH", "CLUSTER_YARN_STREAMING", "BATCH", "STREAMING"}
   )
   public Map<String, String> sparkConfigs;
+
+  @ConfigDefBean
+  public ClusterConfig clusterConfig;
+
+  @ConfigDefBean
+  public DatabricksConfig databricksConfig;
 
   @ConfigDefBean
   public AmazonEMRConfig amazonEMRConfig;

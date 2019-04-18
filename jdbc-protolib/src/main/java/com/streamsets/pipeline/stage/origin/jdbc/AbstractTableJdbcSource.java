@@ -86,6 +86,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
   //can keep track of different closeables from different threads
   private final Collection<Cache<TableRuntimeContext, TableReadContext>> toBeInvalidatedThreadCaches;
   private ScheduledExecutorService executorServiceForTableSpooler;
+  private ScheduledExecutorService executorServiceForNoMoreDataDelay;
 
   private HikariDataSource hikariDataSource;
   private ConnectionManager connectionManager;
@@ -96,6 +97,8 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
 
   protected JdbcUtil jdbcUtil;
   protected TableContextUtil tableContextUtil;
+
+  protected boolean isReconnect;
 
   public AbstractTableJdbcSource(
       HikariPoolConfigBean hikariConfigBean,
@@ -117,6 +120,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
     toBeInvalidatedThreadCaches = new ArrayList<>();
     this.tableContextUtil = tableContextUtil;
     this.jdbcUtil = UtilsProvider.getJdbcUtil();
+    this.isReconnect = false;
   }
 
   @Override
@@ -144,7 +148,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
     }
     if (issues.isEmpty()) {
       try {
-        connectionManager = new ConnectionManager(hikariDataSource);
+        connectionManager = new ConnectionManager(hikariConfigBean.getVendor(), hikariDataSource);
 
         getTables(getContext(), issues, connectionManager);
 
@@ -320,7 +324,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
         }
       } catch (ExecutionException e) {
         LOG.error("Error during Table Order Provider Init", e);
-        throw new StageException(JdbcErrors.JDBC_67, e);
+        throw new StageException(JdbcErrors.JDBC_67, e.getMessage(), e);
       }
 
       //Accessed by all runner threads
@@ -357,6 +361,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
             .commonSourceConfigBean(commonSourceConfigBean)
             .tableJdbcConfigBean(tableJdbcConfigBean)
             .queryRateLimiter(commonSourceConfigBean.creatQueryRateLimiter())
+            .isReconnect(isReconnect)
             .build();
 
         toBeInvalidatedThreadCaches.add(runnable.getTableReadContextCache());
@@ -374,18 +379,33 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
         );
       }
 
+      // Flag to keep track if the no-more-data is already submitted and pending
+      AtomicBoolean noMoreDataAwaitingExecution = new AtomicBoolean(false);
+
       while (!getContext().isStopped()) {
         checkWorkerStatus(completionService);
         final boolean shouldGenerate = tableOrderProvider.shouldGenerateNoMoreDataEvent();
         if (shouldGenerate) {
           final int delay = commonSourceConfigBean.noMoreDataEventDelay;
           if (delay > 0) {
-            Executors.newSingleThreadScheduledExecutor().schedule(new Runnable() {
-              @Override
-              public void run() {
-                jdbcUtil.generateNoMoreDataEvent(getContext());
-              }
-            }, delay, TimeUnit.SECONDS);
+            if (executorServiceForNoMoreDataDelay == null) {
+              executorServiceForNoMoreDataDelay = Executors.newSingleThreadScheduledExecutor();
+            }
+
+            if(noMoreDataAwaitingExecution.get()) {
+              LOG.debug("Event no-more-data already scheduled to be generated, ignoring request");
+            } else {
+              LOG.debug("Scheduling no-more-data event with {} seconds delay", delay);
+              executorServiceForNoMoreDataDelay.schedule(() -> {
+                try {
+                  LOG.debug("Generating and processing no-more-data event");
+                  jdbcUtil.generateNoMoreDataEvent(getContext());
+                } finally {
+                  LOG.debug("Event no-more-data successfully generated and processed");
+                  noMoreDataAwaitingExecution.set(false);
+                }
+              }, delay, TimeUnit.SECONDS);
+            }
           } else {
             jdbcUtil.generateNoMoreDataEvent(getContext());
           }
@@ -446,7 +466,7 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
           throw (StageException) cause;
         } else {
           LOG.error("Internal Error", e);
-          throw new StageException(JdbcErrors.JDBC_75, e.toString());
+          throw new StageException(JdbcErrors.JDBC_75, e.toString(), e);
         }
       }
     }
@@ -477,7 +497,24 @@ public abstract class AbstractTableJdbcSource extends BasePushSource {
           LOG.warn("Shutdown interrupted");
           interrupted.set(true);
         }
+
+        executorService = null;
       }
+    });
+
+    Optional.ofNullable(executorServiceForNoMoreDataDelay).ifPresent(executor -> {
+      if (!executor.isTerminated()) {
+        LOG.info("Shutting down no more data delay executor service");
+        executor.shutdown();
+        try {
+          executorServiceForNoMoreDataDelay.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+          LOG.warn("Shutdown Data Delay Executor interrupted");
+          interrupted.set(true);
+        }
+      }
+
+      executorServiceForNoMoreDataDelay = null;
     });
     return interrupted.get();
   }

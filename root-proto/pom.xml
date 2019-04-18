@@ -23,10 +23,10 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector</artifactId>
-    <version>3.7.0-SNAPSHOT</version>
+    <version>3.9.0-SNAPSHOT</version>
   </parent>
   <artifactId>streamsets-datacollector-root-proto</artifactId>
-  <version>3.7.0-SNAPSHOT</version>
+  <version>3.9.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Root Prototype POM</description>
   <name>StreamSets Data Collector Root Prototype POM</name>
   <packaging>pom</packaging>
@@ -66,7 +66,7 @@
     <powermock.version>1.7.4</powermock.version>
     <jackson.version>2.8.9</jackson.version>
     <jacoco.version>0.7.7.201606060606</jacoco.version>
-    <hikaricp.version>2.4.1</hikaricp.version>
+    <hikaricp.version>3.2.0</hikaricp.version>
     <jersey.version>2.25.1</jersey.version>
     <!-- Sets the VM argument line used when unit and integration tests are run. -->
     <argLine>-Xmx2g</argLine>
@@ -80,7 +80,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <hive-storage-api.version>2.2.1</hive-storage-api.version>
-    <streamsets-datacollector-rbgen-maven-plugin.version>3.7.0-SNAPSHOT</streamsets-datacollector-rbgen-maven-plugin.version>
+    <streamsets-datacollector-rbgen-maven-plugin.version>3.9.0-SNAPSHOT</streamsets-datacollector-rbgen-maven-plugin.version>
   </properties>
 
   <!-- API dependencies ONLY -->
@@ -357,7 +357,13 @@
           <configuration>
             <forkCount>1</forkCount>
             <reuseForks>true</reuseForks>
-            <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
+            <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>   <!-- 30 min -->
+            <!--
+                Some machines don't have enough randomness, and so SecureRandom will block for minutes at a time,
+                significantly slowing some of the tests (SFTP-related ones in particular).  This is a workaround to use
+                a faster random source that won't block.
+            -->
+            <argLine>-Djava.security.egd=file:/dev/./urandom</argLine>
           </configuration>
         </plugin>
         <plugin>

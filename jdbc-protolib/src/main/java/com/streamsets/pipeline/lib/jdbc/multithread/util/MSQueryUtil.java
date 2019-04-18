@@ -72,9 +72,9 @@ public final class MSQueryUtil {
           "%5$s\n";
 
   private static final String SELECT_CT_CLAUSE = "SELECT * FROM CHANGETABLE(CHANGES %s, %s) AS CT %s %s";
-  private static final String SELECT_CLAUSE = "SELECT TOP %d * " +
+  private static final String SELECT_CLAUSE = "SELECT * " +
       "FROM cdc.fn_cdc_get_all_changes_%s (@start_lsn, @to_lsn, N'all update old') ";
-  private static final String SELECT_TABLE_CLAUSE = "SELECT TOP %d * FROM cdc.%s_CT ";
+  private static final String SELECT_TABLE_CLAUSE = "SELECT * FROM cdc.%s_CT ";
 
   private static final Joiner COMMA_SPACE_JOINER = Joiner.on(", ");
   private static final Joiner AND_JOINER = Joiner.on(" AND ");
@@ -88,6 +88,7 @@ public final class MSQueryUtil {
   private static final String ORDER_BY_CLAUSE = " ORDER BY %s ";
   private static final String OR_CLAUSE = "(%s) OR (%s) ";
   private static final String AND_CLAUSE = "(%s) AND (%s) ";
+  private static final String AND_CLAUSE2 = "(%s) AND (%s) AND (%s)";
 
   private MSQueryUtil() {}
 
@@ -220,24 +221,34 @@ public final class MSQueryUtil {
           condition = "__$start_lsn >= @start_lsn and __$start_lsn <= @to_lsn";
         } else {
           declare_from_lsn = String.format(
-              "DECLARE @start_lsn binary(10) " + "= sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); ",
+              "DECLARE @start_lsn binary(10) " + "= 0x%s; ",
               startOffset.get(CDC_START_LSN)
           );
-          condition = "__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn";
+          condition = "__$start_lsn >= @start_lsn and __$start_lsn <= @to_lsn";
         }
       }
 
       where_clause = String.format(WHERE_CLAUSE, condition);
 
     } else {
-      declare_from_lsn = String.format("DECLARE @start_lsn binary(10) " +
-              "= sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); ",
+      declare_from_lsn = String.format("DECLARE @start_lsn binary(10) = 0x%s; ",
           offsetMap.get(CDC_START_LSN));
 
       String condition1 = String.format(
-          AND_CLAUSE,
-          String.format(BINARY_COLUMN_EQUALS_CLAUSE, CDC_START_LSN,  offsetMap.get(CDC_START_LSN)),
-          String.format(BINARY_COLUMN_GREATER_THAN_CLAUSE, CDC_SEQVAL, offsetMap.get(CDC_SEQVAL))
+          AND_CLAUSE2,
+          String.format(COLUMN_EQUALS_VALUE, CDC_START_LSN, "@start_lsn"),
+          String.format(BINARY_COLUMN_EQUALS_CLAUSE, CDC_SEQVAL, offsetMap.get(CDC_SEQVAL)),
+          String.format(COLUMN_GREATER_THAN_VALUE, CDC_OPERATION, offsetMap.get(CDC_OPERATION))
+      );
+
+      condition1 = String.format(
+          OR_CLAUSE,
+          condition1,
+          String.format(
+              AND_CLAUSE,
+              String.format(COLUMN_EQUALS_VALUE, CDC_START_LSN,  "@start_lsn"),
+              String.format(BINARY_COLUMN_GREATER_THAN_CLAUSE, CDC_SEQVAL,  offsetMap.get(CDC_SEQVAL))
+              )
       );
 
       String condition2 = "__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn";
@@ -252,9 +263,9 @@ public final class MSQueryUtil {
           txnWindow
       );
       declare_to_lsn2 = String.format("IF @start_lsn = @to_lsn " +
-          "SET @to_lsn = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); ");
+          "SET @to_lsn = sys.fn_cdc_get_max_lsn(); ");
     } else {
-      declare_to_lsn = String.format("DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); ");
+      declare_to_lsn = String.format("DECLARE @to_lsn binary(10) = sys.fn_cdc_get_max_lsn(); ");
     }
 
 
@@ -263,15 +274,15 @@ public final class MSQueryUtil {
     query.append(declare_to_lsn2);
 
     if (useTable) {
-      query.append(String.format(SELECT_TABLE_CLAUSE, fetchSize, captureInstanceName));
+      query.append(String.format(SELECT_TABLE_CLAUSE, captureInstanceName));
     } else {
-      query.append(String.format(SELECT_CLAUSE, fetchSize, captureInstanceName));
+      query.append(String.format(SELECT_CLAUSE, captureInstanceName));
     }
 
 
     query.append(where_clause);
 
-    query.append(String.format(ORDER_BY_CLAUSE, COMMA_SPACE_JOINER.join(ImmutableList.of(CDC_START_LSN, CDC_SEQVAL))));
+    query.append(String.format(ORDER_BY_CLAUSE, COMMA_SPACE_JOINER.join(ImmutableList.of(CDC_START_LSN, CDC_SEQVAL, CDC_OPERATION))));
 
     if (allowLateTable) {
       query.append(END_QUERY);

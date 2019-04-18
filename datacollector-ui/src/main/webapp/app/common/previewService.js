@@ -47,8 +47,11 @@ angular.module('dataCollectorApp.common')
       angular.forEach(batchData, function (stageOutput) {
         if(stageOutput.instanceName === stageInstance.instanceName) {
           angular.forEach(stageOutput.output, function(outputs, laneName) {
-            angular.forEach(outputs, function(output) {
+            angular.forEach(outputs, function(output, index) {
               output.laneName = laneName;
+              if (index < 2) {
+                output.expand = true;
+              }
               stagePreviewData.output.push(output);
               if (output.header && !output.header.previousTrackingId) {
                 stagePreviewData.newRecords.push(output);
@@ -407,12 +410,16 @@ angular.module('dataCollectorApp.common')
               }
             })
             .catch(function(response) {
-              defer.reject();
+              if (defer) {
+                defer.reject();
+              }
               $scope.common.errors = [response.data];
             });
         },
         function() {
-          defer.reject();
+          if (defer) {
+            defer.reject();
+          }
           console.log( "Timer rejected!" );
         }
       );

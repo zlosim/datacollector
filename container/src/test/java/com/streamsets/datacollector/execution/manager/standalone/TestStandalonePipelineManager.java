@@ -18,6 +18,7 @@ package com.streamsets.datacollector.execution.manager.standalone;
 import com.codahale.metrics.MetricRegistry;
 import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.credential.CredentialStoresTask;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineState;
@@ -74,10 +75,13 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 import static com.streamsets.datacollector.util.AwaitConditionUtil.numPipelinesEqualTo;
 import static org.awaitility.Awaitility.await;
@@ -95,6 +99,12 @@ public class TestStandalonePipelineManager {
   private PipelineStoreTask pipelineStoreTask;
   private Manager pipelineManager;
   private PipelineStateStore pipelineStateStore;
+  private Object afterActionsFunctionCallParam;
+
+  @Before
+  public void resetState() {
+    afterActionsFunctionCallParam = null;
+  }
 
   @Module(
     injects = {
@@ -222,12 +232,26 @@ public class TestStandalonePipelineManager {
     public PreviewerProvider providePreviewerProvider() {
       return new PreviewerProvider() {
         @Override
-        public Previewer createPreviewer(String user, String name, String rev, PreviewerListener listener,
-                                         ObjectGraph objectGraph) {
+        public Previewer createPreviewer(
+            String user,
+            String name,
+            String rev,
+            PreviewerListener listener,
+            ObjectGraph objectGraph,
+            List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+            Function<Object, Void> afterActionsFunction
+        ) {
           Previewer mock = Mockito.mock(Previewer.class);
           Mockito.when(mock.getId()).thenReturn(UUID.randomUUID().toString());
           Mockito.when(mock.getName()).thenReturn(name);
           Mockito.when(mock.getRev()).thenReturn(rev);
+          Mockito.when(mock.getInterceptorConfs()).thenReturn(interceptorConfs);
+          Mockito.doAnswer(a -> {
+            if (afterActionsFunction != null) {
+              afterActionsFunction.apply(this);
+            }
+            return null;
+          }).when(mock).stop();
           return mock;
         }
       };
@@ -296,10 +320,24 @@ public class TestStandalonePipelineManager {
   @Test
   public void testPreviewer() throws PipelineException {
     pipelineStoreTask.create("user", "abcd", "label","blah", false, false, new HashMap<String, Object>());
-    Previewer previewer = pipelineManager.createPreviewer("user", "abcd", "0");
+
+    final List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs = new LinkedList<>();
+    final PipelineStartEvent.InterceptorConfiguration interceptorConf = new PipelineStartEvent.InterceptorConfiguration();
+    interceptorConf.setStageLibrary("testing-stagelib");
+    interceptorConf.setInterceptorClassName("com.streamsets.test.TestInterceptor");
+    interceptorConf.setParameters(Collections.singletonMap("paramKey", "paramValue"));
+
+    interceptorConfs.add(interceptorConf);
+    Previewer previewer = pipelineManager.createPreviewer("user", "abcd", "0", interceptorConfs, p -> {
+      this.afterActionsFunctionCallParam = p;
+      return null;
+    });
     assertEquals(previewer, pipelineManager.getPreviewer(previewer.getId()));
+    assertEquals(interceptorConfs, previewer.getInterceptorConfs());
     ((StandaloneAndClusterPipelineManager)pipelineManager).outputRetrieved(previewer.getId());
     assertNull(pipelineManager.getPreviewer(previewer.getId()));
+    previewer.stop();
+    assertNotNull(afterActionsFunctionCallParam);
   }
 
   @Test

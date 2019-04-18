@@ -43,7 +43,7 @@ public class DependencyParser {
   /**
    * Various version suffixes that we support.
    */
-  private static String VERSION_SUFFIXES = "-b[0-9]+|-M[0-9]+|-m[0-9]|-pre[0-9]+|\\.RELEASE|-incubating|-beta|-indy|-SNAPSHOT|\\.GA|-GA|\\.hwx|\\.cloudera\\.?[0-9]|-jhyde|a|-cubrid|\\.Fork[0-9]+|m|-jre|-spark[0-9]\\.[0-9]+";
+  private static String VERSION_SUFFIXES = "-b[0-9]+|-M[0-9]+|-m[0-9]|_[0-9]|-pre[0-9]+|\\.RELEASE|-incubating|-beta|-indy|-SNAPSHOT|\\.GA|-GA|\\.hwx|[-\\.]cloudera\\.?[0-9]|-jhyde|a|-cubrid|\\.Fork[0-9]+|m|-jre|-spark[0-9]\\.[0-9]+|-patched";
 
   /**
    * Various supported version specifications
@@ -62,6 +62,8 @@ public class DependencyParser {
     "-([0-9.]+-mapr)",
     // Time based (like '3.0.0.v201112011016')
     "-([0-9.]+\\.v[0-9.]+)",
+    // With commit id at the end (like '1.2.0-3f79e055')
+    "-([0-9.]+-[a-f0-9]{6,8})",
     // PostgreSQL JDBC driver numbering scheme
     "-([0-9.]+-[0-9]+)\\.jdbc[0-9]",
 
@@ -74,7 +76,8 @@ public class DependencyParser {
    */
   private static String[] PATTERN_PREFIXES = new String[] {
     // Libraries that ships multiple jars with different name, but all versions must match
-    "(antlr).*",
+    "(antlr)-.*",
+    "(antlr4)-.*",
     "(asm).*",
     "(atlas).*",
     "(avatica).*",
@@ -135,6 +138,7 @@ public class DependencyParser {
     SPECIAL_CASES.put("sqljdbc4.jar", new Dependency("sqljdbc4", ""));
     SPECIAL_CASES.put("tdgssconfig.jar", new Dependency("tdgssconfig", ""));
     SPECIAL_CASES.put("terajdbc4.jar", new Dependency("terajdbc4", ""));
+    SPECIAL_CASES.put("xdb6.jar", new Dependency("xdb6", ""));
   }
 
   /**

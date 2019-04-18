@@ -37,16 +37,17 @@ import com.streamsets.pipeline.lib.operation.ChangeLogFormatChooserValues;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationActionChooserValues;
 
+import java.util.Collections;
 import java.util.List;
 
 @GenerateResourceBundle
 @StageDef(
-    version = 6,
+    version = 7,
     label = "JDBC Producer",
     description = "Insert, update, and delete data to a JDBC destination.",
     upgrader = JdbcTargetUpgrader.class,
     icon = "rdbms.png",
-    onlineHelpRefUrl ="index.html?contextID=task_cx3_lhh_ht"
+    onlineHelpRefUrl ="index.html?contextID=task_cx3_lhh_htq"
 )
 @ConfigGroups(value = Groups.class)
 @HideConfigs(value = {
@@ -58,7 +59,10 @@ public class JdbcDTarget extends DTarget {
   @ConfigDef(
       required = false,
       type = ConfigDef.Type.STRING,
+      elDefs = {RecordEL.class, TimeEL.class, TimeNowEL.class},
+      evaluation = ConfigDef.Evaluation.EXPLICIT,
       label = "Schema Name",
+      description = "You can use an expression with time and record functions to specify multiple schema names.",
       displayPosition = 20,
       group = "JDBC"
   )
@@ -164,20 +168,6 @@ public class JdbcDTarget extends DTarget {
   public int maxPrepStmtParameters;
 
   @ConfigDef(
-      required = false,
-      type = ConfigDef.Type.NUMBER,
-      defaultValue = "-1",
-      label = "Max Cache Size Per Batch (Entries)",
-      description = "Maximum number of prepared statement stored in cache. Cache is used only when " +
-          "'Use Multi-Row Operation' checkbox is unchecked. Use -1 for unlimited number of entries.",
-      dependsOn = "useMultiRowInsert",
-      triggeredByValue = "false",
-      displayPosition = 60,
-      group = "JDBC"
-  )
-  public int maxPrepStmtCache;
-
-  @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
       defaultValue = "false",
@@ -192,6 +182,16 @@ public class JdbcDTarget extends DTarget {
   @ConfigDefBean()
   public HikariPoolConfigBean hikariConfigBean;
 
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.LIST,
+      label = "Data SQLSTATE Codes",
+      description = "SQLSTATE codes to treat as data errors. Records that trigger these codes are treated as error records.",
+      displayPosition = 1000,
+      group = "ADVANCED"
+  )
+  public List<String> customDataSqlStateCodes = Collections.emptyList();
+
   @Override
   protected Target createTarget() {
     return new JdbcTarget(
@@ -201,11 +201,11 @@ public class JdbcDTarget extends DTarget {
         rollbackOnError,
         useMultiRowInsert,
         maxPrepStmtParameters,
-        maxPrepStmtCache,
         changeLogFormat,
         defaultOperation,
         unsupportedAction,
-        hikariConfigBean
+        hikariConfigBean,
+        customDataSqlStateCodes
     );
   }
 }

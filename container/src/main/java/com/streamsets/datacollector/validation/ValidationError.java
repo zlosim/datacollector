@@ -42,7 +42,7 @@ public enum ValidationError implements ErrorCode {
   VALIDATION_0013("{} cannot have output streams '{}'"),
   VALIDATION_0014("{} must have input streams"),
   VALIDATION_0015("Stage must have '{}' output stream(s) but has '{}'"),
-  VALIDATION_0016("Invalid stage name. Names can include the following characters '{}'"),
+  VALIDATION_0016("Invalid stage name '{}'. Names can include the following characters '{}'"),
   VALIDATION_0017("Invalid input stream names '{}'. Streams can include the following characters '{}'"),
   VALIDATION_0018("Invalid output stream names '{}'. Streams can include the following characters '{}'"),
 
@@ -88,9 +88,6 @@ public enum ValidationError implements ErrorCode {
 
   VALIDATION_0060("Define the error record handling for the pipeline"),
   VALIDATION_0061("Define the directory for error record files"),
-  VALIDATION_0062("Configured memory limit '{}' is not an integer"),
-  VALIDATION_0063("Configured memory limit '{}' is above the maximum allowed: '{}'"),
-  VALIDATION_0064("Error resolving memory limit: {}"),
 
   VALIDATION_0070("Pipeline does not define its execution mode"),
   VALIDATION_0071("Stage '{}' from '{}' library does not support '{}' execution mode"),
@@ -104,6 +101,7 @@ public enum ValidationError implements ErrorCode {
   VALIDATION_0091("Found more than one Target stage that triggers offset commit"),
   VALIDATION_0092("Delivery Guarantee can only be {} if pipeline contains a Target that triggers offset commit"),
   VALIDATION_0093("The pipeline title is empty"),
+  VALIDATION_0094("Stage expects {} input lanes, but only {} given"),
 
   // Event related validations
   VALIDATION_0100("Invalid event stream name '{}'. Streams can include the following characters: '{}'"),

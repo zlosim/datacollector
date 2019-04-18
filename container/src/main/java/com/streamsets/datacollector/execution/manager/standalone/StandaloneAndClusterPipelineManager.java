@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.handler.remote.RemoteDataCollector;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
@@ -64,6 +65,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public class StandaloneAndClusterPipelineManager extends AbstractTask implements Manager, PreviewerListener {
 
@@ -115,11 +117,25 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
   }
 
   @Override
-  public Previewer createPreviewer(String user, String name, String rev) throws PipelineException {
+  public Previewer createPreviewer(
+      String user,
+      String name,
+      String rev,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+      Function<Object, Void> afterActionsFunction
+  ) throws PipelineException {
     if (!pipelineStore.hasPipeline(name)) {
       throw new PipelineStoreException(ContainerError.CONTAINER_0200, name);
     }
-    Previewer previewer = previewerProvider.createPreviewer(user, name, rev, this, objectGraph);
+    Previewer previewer = previewerProvider.createPreviewer(
+        user,
+        name,
+        rev,
+        this,
+        objectGraph,
+        interceptorConfs,
+        afterActionsFunction
+    );
     previewerCache.put(previewer.getId(), previewer);
     return previewer;
   }
@@ -213,8 +229,23 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
         CacheBuilder.newBuilder()
           .expireAfterAccess(30, TimeUnit.MINUTES).removalListener((RemovalListener<String, Previewer>) removal -> {
             Previewer previewer = removal.getValue();
-            LOG.warn("Evicting idle previewer '{}::{}'::'{}' in status '{}'",
-              previewer.getName(), previewer.getRev(), previewer.getId(), previewer.getStatus());
+            LOG.warn(
+                "Evicting idle previewer '{}::{}'::'{}' in status '{}'",
+                previewer.getName(),
+                previewer.getRev(),
+                previewer.getId(),
+                previewer.getStatus()
+            );
+            try {
+              previewer.stop();
+            } catch (Exception e) {
+              LOG.warn(
+                  "{} attempting to stop evicted previewer: {}",
+                  e.getClass().getSimpleName(),
+                  e.getMessage(),
+                  e
+              );
+            }
           }).build()
     );
 

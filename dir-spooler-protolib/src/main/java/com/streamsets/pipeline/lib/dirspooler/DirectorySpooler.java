@@ -22,11 +22,7 @@ import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -276,6 +272,7 @@ public class DirectorySpooler {
   }
 
   private volatile WrappedFile currentFile;
+  private WrappedFile initialFile;
 
   private WrappedFile spoolDirPath;
   private WrappedFile archiveDirPath;
@@ -296,8 +293,15 @@ public class DirectorySpooler {
 
   private void checkBaseDir(WrappedFile path) {
     Preconditions.checkState(path.isAbsolute(), Utils.formatL("Path '{}' is not an absolute path", path));
-    Preconditions.checkState(fs.exists(path), Utils.formatL("Path '{}' does not exist", path));
-    Preconditions.checkState(fs.isDirectory(path), Utils.formatL("Path '{}' is not a directory", path));
+
+    if (SpoolDirUtil.isGlobPattern(path.getAbsolutePath())) {
+      String absolutePath = SpoolDirUtil.truncateGlobPatternDirectory(path.getAbsolutePath());
+      Preconditions.checkState(fs.exists(fs.getFile(absolutePath)), Utils.formatL("Path '{}' does not exist", path));
+      Preconditions.checkState(fs.isDirectory(fs.getFile(absolutePath)), Utils.formatL("Path '{}' is not a directory", path));
+    } else {
+      Preconditions.checkState(fs.exists(path), Utils.formatL("Path '{}' does not exist", path));
+      Preconditions.checkState(fs.isDirectory(path), Utils.formatL("Path '{}' is not a directory", path));
+    }
   }
 
   public void init(String sourceFile) {
@@ -315,6 +319,7 @@ public class DirectorySpooler {
           // if filename only or not full path - add the full path to the filename
           this.currentFile = fs.getFile(spoolDirPath.toString(), sourceFile);
         }
+        this.initialFile = this.currentFile;
       }
 
       if (!waitForPathAppearance) {
@@ -505,6 +510,7 @@ public class DirectorySpooler {
         // allow control to flow through anyway (so file gets added to queue), since that has been the behavior forever
       }
     }
+
     if (!filesSet.contains(file)) {
       filesQueue.add(file);
       filesSet.add(file);
@@ -636,7 +642,7 @@ public class DirectorySpooler {
       try {
         List<WrappedFile> matchingFile = new ArrayList<>();
 
-        fs.addFiles(dir, currentFile, matchingFile, includeStartingFile, useLastModified);
+        fs.addFiles(dir, this.currentFile, matchingFile, includeStartingFile, useLastModified);
 
         if (matchingFile.size() > 0) {
           try {
@@ -647,11 +653,16 @@ public class DirectorySpooler {
               if (!running) {
                 return null;
               }
-              if (fs.isDirectory(file)) {
-                continue;
+
+              if (this.currentFile == null || fs.compare(this.currentFile, this.initialFile, useLastModified) == 0
+                  || fs.compare(file, this.currentFile, useLastModified) > 0) {
+                if (!fs.isDirectory(file)) {
+                  LOG.trace("Found file '{}'", file);
+                  addFileToQueue(file, checkCurrent);
+                }
+              } else {
+                LOG.trace("Discarding file {} because it is already older than currentFile", file.getAbsolutePath());
               }
-              LOG.trace("Found file '{}'", file);
-              addFileToQueue(file, checkCurrent);
             }
           } finally {
             closeLock.writeLock().unlock();

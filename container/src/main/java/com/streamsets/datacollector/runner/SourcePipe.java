@@ -15,15 +15,14 @@
  */
 package com.streamsets.datacollector.runner;
 
-import com.streamsets.datacollector.memory.MemoryUsageCollectorResourceBundle;
 import com.streamsets.datacollector.restapi.bean.MetricRegistryJson;
 import com.streamsets.datacollector.runner.production.ReportErrorDelegate;
 import com.streamsets.datacollector.usagestats.StatsCollector;
-import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
+import com.streamsets.pipeline.lib.log.LogConstants;
+import org.apache.log4j.MDC;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -37,26 +36,20 @@ public class SourcePipe extends StagePipe implements ReportErrorDelegate {
   public SourcePipe(
     String name,
     String rev,
-    Configuration configuration,
     StageRuntime stage,
     List<String> inputLanes,
     List<String> outputLanes,
     List<String> eventLanes,
-    ResourceControlledScheduledExecutor scheduledExecutorService,
-    MemoryUsageCollectorResourceBundle memoryUsageCollectorResourceBundle,
     StatsCollector statsCollector,
     MetricRegistryJson metricRegistryJson
   ) {
     super(
       name,
       rev,
-      configuration,
       stage,
       inputLanes,
       outputLanes,
       eventLanes,
-      scheduledExecutorService,
-      memoryUsageCollectorResourceBundle,
       metricRegistryJson
     );
     this.statsCollector = statsCollector;
@@ -80,7 +73,13 @@ public class SourcePipe extends StagePipe implements ReportErrorDelegate {
   ) throws StageException, PipelineRuntimeException {
     this.reportErrorDelegate = reportErrorDelegate;
     getStage().setReportErrorDelegate(this);
-    getStage().execute(offsets, batchSize);
+
+    try {
+      MDC.put(LogConstants.STAGE, getStage().getInfo().getInstanceName());
+      getStage().execute(offsets, batchSize);
+    } finally {
+      MDC.put(LogConstants.STAGE, "");
+    }
   }
 
   /**

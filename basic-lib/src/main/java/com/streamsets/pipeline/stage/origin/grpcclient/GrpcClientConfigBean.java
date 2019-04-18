@@ -65,8 +65,8 @@ public class GrpcClientConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
-      label = "Mode",
-      description = "gRPC mode",
+      label = "Method Type",
+      description = "Type of service method that the origin calls",
       defaultValue = "UNARY_RPC",
       displayPosition = 30,
       group = "GRPC"
@@ -104,11 +104,11 @@ public class GrpcClientConfigBean {
       description = "The maximum idle time in seconds, after which a keepalive probe is sent. " +
           "If the connection remains idle and no keepalive response is received for this same period then the " +
           "connection is closed and the operation fails.",
-      defaultValue = "0",
+      defaultValue = "10",
       displayPosition = 45,
       group = "GRPC"
   )
-  public long keepaliveTime = 0;
+  public long keepaliveTime = 10;
 
   @ConfigDef(
       required = false,
@@ -120,17 +120,6 @@ public class GrpcClientConfigBean {
       group = "GRPC"
   )
   public Map<String, String> addlHeaders = new HashMap<>();
-
-  @ConfigDef(
-      required = false,
-      type = ConfigDef.Type.MAP,
-      label = "RPC Headers",
-      description = "These headers will also be included in reflection requests to a server.",
-      evaluation = ConfigDef.Evaluation.EXPLICIT,
-      displayPosition = 55,
-      group = "GRPC"
-  )
-  public Map<String, String> rpcHeaders = new HashMap<>();
 
   @ConfigDef(
       required = true,

@@ -104,7 +104,7 @@ public class ManagerResource {
     this.store = store;
 
     UserJson currentUser;
-    if (runtimeInfo.isDPMEnabled()) {
+    if (runtimeInfo.isDPMEnabled() && !runtimeInfo.isRemoteSsoDisabled()) {
       currentUser = new UserJson((SSOPrincipal)principal);
     } else {
       currentUser = userGroupManager.getUser(principal);
@@ -359,8 +359,12 @@ public class ManagerResource {
       }
     }
     Runner runner = manager.getRunner(pipelineId, rev);
-    Utils.checkState(runner.getState().getExecutionMode() == ExecutionMode.STANDALONE,
-        Utils.format("This operation is not supported in {} mode", runner.getState().getExecutionMode()));
+    Utils.checkState(
+        runner.getState().getExecutionMode() == ExecutionMode.STANDALONE ||
+            runner.getState().getExecutionMode() == ExecutionMode.STREAMING ||
+            runner.getState().getExecutionMode() == ExecutionMode.BATCH,
+        Utils.format("This operation is not supported in {} mode", runner.getState().getExecutionMode())
+    );
     runner.forceQuit(user);
     return Response.ok()
         .type(MediaType.APPLICATION_JSON)
@@ -396,8 +400,12 @@ public class ManagerResource {
 
         Runner runner = manager.getRunner(pipelineId, "0");
         try {
-          Utils.checkState(runner.getState().getExecutionMode() == ExecutionMode.STANDALONE,
-              Utils.format("This operation is not supported in {} mode", runner.getState().getExecutionMode()));
+          Utils.checkState(
+              runner.getState().getExecutionMode() == ExecutionMode.STANDALONE ||
+                  runner.getState().getExecutionMode() == ExecutionMode.STREAMING ||
+                  runner.getState().getExecutionMode() == ExecutionMode.BATCH,
+              Utils.format("This operation is not supported in {} mode", runner.getState().getExecutionMode())
+          );
           runner.forceQuit(user);
           successEntities.add(runner.getState());
 

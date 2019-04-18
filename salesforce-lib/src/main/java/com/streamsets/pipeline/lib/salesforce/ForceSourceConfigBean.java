@@ -155,7 +155,7 @@ public class ForceSourceConfigBean extends ForceInputConfigBean {
   public long queryInterval;
 
   @ConfigDef(
-      required = true,
+      required = false,
       type = ConfigDef.Type.STRING,
       defaultValue = "000000000000000",
       label = "Initial Offset",
@@ -170,7 +170,7 @@ public class ForceSourceConfigBean extends ForceInputConfigBean {
   public String initialOffset;
 
   @ConfigDef(
-      required = true,
+      required = false,
       type = ConfigDef.Type.STRING,
       defaultValue = "Id",
       label = "Offset Field",
@@ -236,6 +236,20 @@ public class ForceSourceConfigBean extends ForceInputConfigBean {
       group = "SUBSCRIBE"
   )
   public String platformEvent;
+
+  @ConfigDef(
+          required = false,
+          type = ConfigDef.Type.STRING,
+          label = "Change Data Capture Object",
+          description = "The object for which you want to receive change events. Leave blank to receive all change events.",
+          displayPosition = 126,
+          dependencies = {
+                  @Dependency(configName = "subscribeToStreaming", triggeredByValues = "true"),
+                  @Dependency(configName = "subscriptionType", triggeredByValues = "CDC"),
+          },
+          group = "SUBSCRIBE"
+  )
+  public String cdcObject;
 
   @ConfigDef(
       required = true,

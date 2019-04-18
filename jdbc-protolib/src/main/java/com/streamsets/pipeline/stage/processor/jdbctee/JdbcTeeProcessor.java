@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +61,6 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
   private final boolean rollbackOnError;
   private final boolean useMultiRowOp;
   private final int maxPrepStmtParameters;
-  private final int maxPrepStmtCache;
 
   private final String schema;
   private final String tableNameTemplate;
@@ -93,7 +93,6 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
       boolean rollbackOnError,
       boolean useMultiRowOp,
       int maxPrepStmtParameters,
-      int maxPrepStmtCache,
       ChangeLogFormat changeLogFormat,
       HikariPoolConfigBean hikariConfigBean,
       JDBCOperationType defaultOp,
@@ -108,7 +107,6 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
     this.rollbackOnError = rollbackOnError;
     this.useMultiRowOp = useMultiRowOp;
     this.maxPrepStmtParameters = maxPrepStmtParameters;
-    this.maxPrepStmtCache = maxPrepStmtCache;
     this.changeLogFormat = changeLogFormat;
     this.hikariConfigBean = hikariConfigBean;
     this.defaultOperation = defaultOp;
@@ -141,11 +139,11 @@ public class JdbcTeeProcessor extends SingleLaneProcessor {
           rollbackOnError,
           useMultiRowOp,
           maxPrepStmtParameters,
-          maxPrepStmtCache,
           defaultOperation.getCode(),
           unsupportedAction,
           JdbcRecordReaderWriterFactory.createRecordReader(changeLogFormat),
-          caseSensitive
+          caseSensitive,
+          Collections.emptyList()
       );
     }
   }

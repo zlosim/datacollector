@@ -81,10 +81,23 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
       UnsupportedOperationAction unsupportedAction,
       List<JdbcFieldColumnMapping> generatedColumnMappings,
       JdbcRecordReader recordReader,
-      boolean caseSensitive
+      boolean caseSensitive,
+      List<String> customDataSqlStateCodes
   ) throws StageException {
-    super(connectionString, dataSource, schema, tableName, rollbackOnError, customMappings,
-        defaultOpCode, unsupportedAction, recordReader, generatedColumnMappings, caseSensitive);
+    super(
+        connectionString,
+        dataSource,
+        schema,
+        tableName,
+        rollbackOnError,
+        customMappings,
+        defaultOpCode,
+        unsupportedAction,
+        recordReader,
+        generatedColumnMappings,
+        caseSensitive,
+        customDataSqlStateCodes
+    );
     this.maxPrepStmtParameters = maxPrepStmtParameters == UNLIMITED_PARAMETERS ? Integer.MAX_VALUE :
         maxPrepStmtParameters;
     this.caseSensitive = caseSensitive;
@@ -241,7 +254,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
         }
       }
     } catch (SQLException e) {
-      handleSqlException(e);
+      handleSqlException(e, removed, errorRecords);
     }
 
     // Process the rest of the records that are removed from queue but haven't processed yet
@@ -272,7 +285,7 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
         }
         processBatch(removed, errorRecords, statement, connection);
       } catch (SQLException e) {
-        handleSqlException(e);
+        handleSqlException(e, removed, errorRecords);
       }
     }
   }
@@ -299,6 +312,27 @@ public class JdbcMultiRowRecordWriter extends JdbcBaseRecordWriter {
     if (getGeneratedColumnMappings() != null) {
       writeGeneratedColumns(statement, queue.iterator(), errorRecords);
     }
+  }
+
+  /**
+   * Handle SQLException in a smart way, detecting if the exception is data oriented or not.
+   */
+  private void handleSqlException(
+    SQLException exception,
+    List<Record> inputRecords,
+    List<OnRecordErrorException> errors
+  ) throws StageException {
+    if(jdbcUtil.isDataError(getCustomDataSqlStateCodes(), getConnectionString(), exception)) {
+      String formattedError = jdbcUtil.formatSqlException(exception);
+      LOG.error(JdbcErrors.JDBC_89.getMessage(), formattedError);
+
+      for(Record inputRecord : inputRecords) {
+        errors.add(new OnRecordErrorException(inputRecord, JdbcErrors.JDBC_89, formattedError));
+      }
+      return;
+    }
+
+    super.handleSqlException(exception);
   }
 
   @VisibleForTesting

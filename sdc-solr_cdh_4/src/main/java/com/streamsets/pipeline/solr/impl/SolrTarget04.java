@@ -56,6 +56,7 @@ public class SolrTarget04 implements SdcSolrTarget {
   private final boolean softCommit;
   private final boolean ignoreOptionalFields;
   private List<String> requiredFieldNamesMap;
+  private List<String> optionalFieldNamesMap;
 
   public SolrTarget04(
       String instanceType,
@@ -80,6 +81,7 @@ public class SolrTarget04 implements SdcSolrTarget {
     this.softCommit = softCommit;
     this.ignoreOptionalFields = ignoreOptionalFields;
     this.requiredFieldNamesMap = new ArrayList<>();
+    this.optionalFieldNamesMap = new ArrayList<>();
   }
 
   public void init() throws Exception {
@@ -87,8 +89,9 @@ public class SolrTarget04 implements SdcSolrTarget {
     if (!skipValidation) {
       solrClient.ping();
     }
-    if (ignoreOptionalFields) {
-      getRequiredFieldNames();
+    getRequiredFieldNames();
+    if (!ignoreOptionalFields) {
+      getOptionalFieldNames();
     }
   }
 
@@ -109,6 +112,25 @@ public class SolrTarget04 implements SdcSolrTarget {
         requiredFieldNamesMap.add(field.get(NAME).toString());
       }
     }
+  }
+
+  private void getOptionalFieldNames() throws SolrServerException, IOException {
+    QueryRequest request = new QueryRequest();
+    request.setPath(SCHEMA_PATH);
+    NamedList queryResponse = solrClient.request(request);
+
+    SimpleOrderedMap simpleOrderedMap = (SimpleOrderedMap) queryResponse.get("schema");
+    ArrayList<SimpleOrderedMap> fields = (ArrayList<SimpleOrderedMap>) simpleOrderedMap.get("fields");
+
+    for (SimpleOrderedMap field : fields) {
+      if (field.get(REQUIRED) == null || field.get(REQUIRED).equals(false)) {
+        optionalFieldNamesMap.add(field.get(NAME).toString());
+      }
+    }
+  }
+
+  public List<String> getOptionalFieldNamesMap() {
+    return optionalFieldNamesMap;
   }
 
   private SolrServer getSolrClient() throws MalformedURLException {
@@ -172,14 +194,6 @@ public class SolrTarget04 implements SdcSolrTarget {
   public void commit() throws StageException {
     try {
       this.solrClient.commit(waitFlush, waitSearcher, softCommit);
-    } catch (SolrServerException | IOException ex) {
-      throw new StageException(Errors.SOLR_05, ex.toString(), ex);
-    }
-  }
-
-  public void rollback() throws StageException {
-    try {
-      this.solrClient.rollback();
     } catch (SolrServerException | IOException ex) {
       throw new StageException(Errors.SOLR_05, ex.toString(), ex);
     }

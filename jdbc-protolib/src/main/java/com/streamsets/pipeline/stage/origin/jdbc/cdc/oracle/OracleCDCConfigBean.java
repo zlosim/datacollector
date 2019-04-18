@@ -163,6 +163,17 @@ public class OracleCDCConfigBean {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Convert Timestamp To String",
+      description = "Rather then representing timestamps as Data Collector DATETIME type, use String.",
+      displayPosition = 125,
+      group = "CDC"
+  )
+  public boolean convertTimestampToString;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.NUMBER,
       label = "Maximum Transaction Length",
       description = "Time window to look for changes within a transaction before commit (in seconds)",
@@ -189,21 +200,9 @@ public class OracleCDCConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.NUMBER,
-      label = "JDBC Fetch Size",
-      description = "To reduce latency, set this lower if the write rate to the tables is low.",
-      displayPosition = 145,
-      group = "CDC",
-      min = 1,
-      defaultValue = "1"
-  )
-  public int jdbcFetchSize;
-
-  @ConfigDef(
-      required = true,
       type = ConfigDef.Type.BOOLEAN,
       label = "Parse SQL Query",
-      description = "Parse the SQL Query read from LogMiner into an SDC record. If unselected, the unparsed sql " +
+      description = "Parse the SQL Query read from LogMiner into an SDC record. If unselected, the unparsed SQL " +
           "statement is inserted into the /sql field",
       displayPosition = 150,
       group = "CDC",
@@ -214,7 +213,7 @@ public class OracleCDCConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
-      label = "Send Redo Query in headers",
+      label = "Send Redo Query in Headers",
       description = "Send the actual redo query returned by LogMiner in record headers",
       displayPosition = 170,
       group = "CDC",
@@ -224,10 +223,35 @@ public class OracleCDCConfigBean {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "JDBC Fetch Size for Current Window",
+      description = "JDBC fetch size used for the current LogMiner session window. Strongly recommended to use 1 in order to make data available " +
+          "as soon as Oracle CDC origin receive redo logs",
+      displayPosition = 1, // display at the top of the advanced tab
+      group = "ADVANCED",
+      min = 1,
+      defaultValue = "1"
+  )
+  public int fetchSizeLatest;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "JDBC Fetch Size for Past Windows",
+      description = "Used for past LogMiner session windows. To reduce latency, set this lower if the write rate to the tables is low.",
+      displayPosition = 5,
+      group = "ADVANCED",
+      min = 1,
+      defaultValue = "1"
+  )
+  public int jdbcFetchSize;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.BOOLEAN,
       label = "Use PEG Parser (beta)",
       description = "Optionally use the alternate parser to enhance performance",
-      displayPosition = 5, // display at the top of the advanced tab
+      displayPosition = 8,
       group = "ADVANCED",
       dependsOn = "parseQuery",
       triggeredByValue = "true",
@@ -240,7 +264,7 @@ public class OracleCDCConfigBean {
       type = ConfigDef.Type.NUMBER,
       label = "Parsing Thread Pool Size",
       description = "Number of threads to use to parse",
-      displayPosition = 6,
+      displayPosition = 20,
       group = "ADVANCED",
       dependencies = {
           @Dependency(configName = "parseQuery", triggeredByValues = "true"),

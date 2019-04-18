@@ -28,6 +28,7 @@ import com.streamsets.datacollector.config.ThresholdType;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
 import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
 import com.streamsets.datacollector.execution.Previewer;
@@ -102,6 +103,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Function;
 
 public class TestUtil {
   public static final String USER = "user";
@@ -783,12 +785,20 @@ public class TestUtil {
     public PreviewerProvider providePreviewerProvider() {
       return new PreviewerProvider() {
         @Override
-        public Previewer createPreviewer(String user, String name, String rev, PreviewerListener listener,
-                                         ObjectGraph objectGraph) {
+        public Previewer createPreviewer(
+            String user,
+            String name,
+            String rev,
+            PreviewerListener listener,
+            ObjectGraph objectGraph,
+            List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+            Function<Object, Void> afterActionsFunction
+        ) {
           Previewer mock = Mockito.mock(Previewer.class);
           Mockito.when(mock.getId()).thenReturn(UUID.randomUUID().toString());
           Mockito.when(mock.getName()).thenReturn(name);
           Mockito.when(mock.getRev()).thenReturn(rev);
+          Mockito.when(mock.getInterceptorConfs()).thenReturn(interceptorConfs);
           return mock;
         }
       };

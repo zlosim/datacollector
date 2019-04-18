@@ -24,6 +24,7 @@ import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.el.JobEL;
 import com.streamsets.datacollector.el.PipelineEL;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.execution.PreviewOutput;
 import com.streamsets.datacollector.execution.PreviewStatus;
 import com.streamsets.datacollector.execution.Previewer;
@@ -70,6 +71,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public class SyncPreviewer implements Previewer {
   private static final Logger LOG = LoggerFactory.getLogger(SyncPreviewer.class);
@@ -86,6 +88,9 @@ public class SyncPreviewer implements Previewer {
   private final String name;
   private final String rev;
   private final PreviewerListener previewerListener;
+  private final List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs;
+  private final Function afterActionsFunction;
+
   @Inject Configuration configuration;
   @Inject StageLibraryTask stageLibrary;
   @Inject PipelineStoreTask pipelineStore;
@@ -104,7 +109,9 @@ public class SyncPreviewer implements Previewer {
       String name,
       String rev,
       PreviewerListener previewerListener,
-      ObjectGraph objectGraph
+      ObjectGraph objectGraph,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+      Function<Object, Void> afterActionsFunction
   ) {
     objectGraph.inject(this);
     this.id = id;
@@ -119,6 +126,8 @@ public class SyncPreviewer implements Previewer {
     this.rev = rev;
     this.previewerListener = previewerListener;
     this.previewStatus = PreviewStatus.CREATED;
+    this.interceptorConfs = interceptorConfs;
+    this.afterActionsFunction = afterActionsFunction;
   }
 
   @Override
@@ -134,6 +143,11 @@ public class SyncPreviewer implements Previewer {
   @Override
   public String getRev() {
     return rev;
+  }
+
+  @Override
+  public List<PipelineStartEvent.InterceptorConfiguration> getInterceptorConfs() {
+    return interceptorConfs;
   }
 
   @Override
@@ -274,6 +288,17 @@ public class SyncPreviewer implements Previewer {
     }
     PipelineEL.unsetConstantsInContext();
     JobEL.unsetConstantsInContext();
+    runAfterActionsIfNecessary();
+  }
+
+  public void runAfterActionsIfNecessary() {
+    if (afterActionsFunction != null) {
+      // to make ErrorProne happy
+      final Object ignored = afterActionsFunction.apply(this);
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Return value from afterActionsFunction: {}", ignored);
+      }
+    }
   }
 
   public void prepareForTimeout() {
@@ -369,7 +394,8 @@ public class SyncPreviewer implements Previewer {
         blobStoreTask,
         lineagePublisherTask,
         statsCollector,
-        testOrigin
+        testOrigin,
+        interceptorConfs
     ).build(userContext, runner);
   }
 

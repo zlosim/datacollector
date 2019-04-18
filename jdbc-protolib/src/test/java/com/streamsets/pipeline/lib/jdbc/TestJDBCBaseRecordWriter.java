@@ -41,6 +41,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -129,12 +130,12 @@ public class TestJDBCBaseRecordWriter {
         "TEST_TABLE",
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
 
     try {
@@ -157,12 +158,12 @@ public class TestJDBCBaseRecordWriter {
         "COMPOSITE_KEY",
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
 
     try {
@@ -197,12 +198,12 @@ public class TestJDBCBaseRecordWriter {
         "TEST_TABLE",
         false, //rollback
         columnMapping,
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         generatedColumnMapping,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     Record record = RecordCreator.create();
     Map<String, Field> fields = new HashMap<>();
@@ -272,12 +273,12 @@ public class TestJDBCBaseRecordWriter {
         "TEST_TABLE2",
         false, //rollback
         columnMapping,
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         generatedColumnMapping,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     Record record = RecordCreator.create();
     Map<String, Field> fields = new HashMap<>();
@@ -357,12 +358,12 @@ public class TestJDBCBaseRecordWriter {
         "TEST_TABLE",
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         null,
         new JdbcRecordReader(),
-        false
+        false,
+        Collections.emptyList()
     );
 
     /* isColumnTypeNumeric() - true assertions */

@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.7.0-SNAPSHOT</version>
+    <version>3.9.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-basic-lib</artifactId>
-  <version>3.7.0-SNAPSHOT</version>
+  <version>3.9.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Basic Lib</description>
   <name>StreamSets Data Collector Basic Lib</name>
   <packaging>jar</packaging>
@@ -40,12 +40,12 @@
     <guava.version>20.0</guava.version>
     <h2.version>1.4.187</h2.version>
     <joda.version>2.8</joda.version>
-    <milo.version>0.1.5</milo.version>
+    <milo.version>0.2.4</milo.version>
     <xerces.version>2.11.0</xerces.version>
     <jetty.version>9.4.12.v20180830</jetty.version>
     <paho.version>1.0.2</paho.version>
     <snappy.version>0.4</snappy.version>
-    <syslog.version>1.1.3</syslog.version>
+    <syslog.version>1.1.7</syslog.version>
   </properties>
 
   <dependencies>
@@ -321,7 +321,7 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-vfs2</artifactId>
-      <version>2.0</version>
+      <version>2.2</version>
     </dependency>
 
     <dependency>
@@ -339,6 +339,24 @@
       <groupId>com.cloudbees</groupId>
       <artifactId>syslog-java-client</artifactId>
       <version>${syslog.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk15on</artifactId>
+      <version>${bouncycastle.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.hierynomus</groupId>
+      <artifactId>sshj</artifactId>
+      <version>0.27.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.jcraft</groupId>
+      <artifactId>jzlib</artifactId>
+      <version>1.1.3</version>
     </dependency>
 
     <!-- Test Dependencies -->
@@ -394,12 +412,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.bouncycastle</groupId>
-      <artifactId>bcprov-jdk15on</artifactId>
-      <version>${bouncycastle.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-scripting-protolib</artifactId>
       <type>test-jar</type>
@@ -434,13 +446,13 @@
     <dependency>
       <groupId>org.apache.sshd</groupId>
       <artifactId>sshd-core</artifactId>
-      <version>1.2.0</version>
+      <version>1.7.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.mockftpserver</groupId>
-      <artifactId>MockFtpServer</artifactId>
-      <version>2.6</version>
+      <groupId>org.apache.ftpserver</groupId>
+      <artifactId>ftpserver-core</artifactId>
+      <version>1.1.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>

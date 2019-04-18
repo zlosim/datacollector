@@ -53,6 +53,7 @@ public class SolrTarget06 implements SdcSolrTarget {
   private final boolean waitSearcher;
   private final boolean softCommit;
   private List<String> requiredFieldNamesMap;
+  private List<String> optionalFieldNamesMap;
 
   public SolrTarget06(
       String instanceType,
@@ -77,6 +78,7 @@ public class SolrTarget06 implements SdcSolrTarget {
     this.softCommit = softCommit;
     this.ignoreOptionalFields = ignoreOptionalFields;
     this.requiredFieldNamesMap = new ArrayList<>();
+    this.optionalFieldNamesMap = new ArrayList<>();
   }
 
   public void init() throws Exception {
@@ -84,8 +86,9 @@ public class SolrTarget06 implements SdcSolrTarget {
     if (!skipValidation) {
       solrClient.ping();
     }
-    if (ignoreOptionalFields) {
-      getRequiredFieldNames();
+    getRequiredFieldNames();
+    if (!ignoreOptionalFields) {
+      getOptionalFieldNames();
     }
   }
 
@@ -99,8 +102,24 @@ public class SolrTarget06 implements SdcSolrTarget {
     SchemaRepresentation schemaRepresentation = schemaResponse.getSchemaRepresentation();
     List<Map<String, Object>> fields = schemaRepresentation.getFields();
     for (Map<String, Object> field : fields) {
-      if (field.containsKey(REQUIRED) && field.get(REQUIRED) == "true") {
-        requiredFieldNamesMap.add(field.get(REQUIRED).toString());
+      if (field.containsKey(REQUIRED) && field.get(REQUIRED).equals(true)) {
+        requiredFieldNamesMap.add(field.get(NAME).toString());
+      }
+    }
+  }
+
+  public List<String> getOptionalFieldNamesMap() {
+    return optionalFieldNamesMap;
+  }
+
+  private void getOptionalFieldNames() throws SolrServerException, IOException {
+    SchemaRequest schemaRequest = new SchemaRequest();
+    SchemaResponse schemaResponse = schemaRequest.process(solrClient);
+    SchemaRepresentation schemaRepresentation = schemaResponse.getSchemaRepresentation();
+    List<Map<String, Object>> fields = schemaRepresentation.getFields();
+    for (Map<String, Object> field : fields) {
+      if (!field.containsKey(REQUIRED) || field.get(REQUIRED).equals(false)) {
+        optionalFieldNamesMap.add(field.get(NAME).toString());
       }
     }
   }
@@ -167,14 +186,6 @@ public class SolrTarget06 implements SdcSolrTarget {
   public void commit() throws StageException {
     try {
       this.solrClient.commit(waitFlush, waitSearcher, softCommit);
-    } catch (SolrServerException | IOException ex) {
-      throw new StageException(Errors.SOLR_05, ex.toString(), ex);
-    }
-  }
-
-  public void rollback() throws StageException {
-    try {
-      this.solrClient.rollback();
     } catch (SolrServerException | IOException ex) {
       throw new StageException(Errors.SOLR_05, ex.toString(), ex);
     }

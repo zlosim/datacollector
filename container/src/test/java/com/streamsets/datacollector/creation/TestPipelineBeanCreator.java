@@ -17,6 +17,7 @@ package com.streamsets.datacollector.creation;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.streamsets.pipeline.api.BlobStoreDef;
 import com.streamsets.datacollector.config.InterceptorDefinition;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.ServiceDefinition;
@@ -368,6 +369,11 @@ public class TestPipelineBeanCreator {
     public Interceptor create(Context context) {
       return new MyInterceptor(context.getStageType().name() + " " + context.getInterceptorType().name());
     }
+
+    @Override
+    public List<BlobStoreDef> blobStoreResource(Map<String, String> ids){
+      return new ArrayList<>();
+    }
   }
 
   @InterceptorDef(
@@ -533,7 +539,6 @@ public class TestPipelineBeanCreator {
     constants.add(constantValue);
     List<Config> pipelineConfigs = ImmutableList.of(
         new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name()),
-        new Config("memoryLimit", "${MEMORY_LIMIT}"),
         new Config("constants", constants)
     );
 
@@ -582,7 +587,6 @@ public class TestPipelineBeanCreator {
 
     // pipeline configs
     Assert.assertEquals(ExecutionMode.CLUSTER_BATCH, bean.getConfig().executionMode);
-    Assert.assertEquals(1000, bean.getConfig().memoryLimit);
 
     // Origin
     Assert.assertNotNull(bean.getOrigin());
@@ -621,7 +625,6 @@ public class TestPipelineBeanCreator {
     Assert.assertNotNull(bean);
     // pipeline configs
     Assert.assertEquals(ExecutionMode.CLUSTER_BATCH, bean.getConfig().executionMode);
-    Assert.assertEquals(2000, bean.getConfig().memoryLimit);
 
     // Verify duplicate stage bean
     issues = new ArrayList<>();
@@ -660,8 +663,7 @@ public class TestPipelineBeanCreator {
     Mockito.when(libraryDef.getClassLoader()).thenReturn(Thread.currentThread().getContextClassLoader());
 
     List<Config> pipelineConfigs = ImmutableList.of(
-        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name()),
-        new Config("memoryLimit", 1000)
+        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name())
     );
 
     StageConfiguration sourceConf = new StageConfigurationBuilder("si", "s")
@@ -772,8 +774,7 @@ public class TestPipelineBeanCreator {
     Mockito.when(libraryDef.getClassLoader()).thenReturn(Thread.currentThread().getContextClassLoader());
 
     List<Config> pipelineConfigs = ImmutableList.of(
-        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name()),
-        new Config("memoryLimit", 1000)
+        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name())
     );
 
     StageConfiguration stageConf = new StageConfigurationBuilder("si", "s")
@@ -836,8 +837,7 @@ public class TestPipelineBeanCreator {
     Mockito.when(libraryDef.getClassLoader()).thenReturn(Thread.currentThread().getContextClassLoader());
 
     List<Config> pipelineConfigs = ImmutableList.of(
-        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name()),
-        new Config("memoryLimit", 1000)
+        new Config("executionMode", ExecutionMode.CLUSTER_BATCH.name())
     );
 
     StageConfiguration sourceConf = new StageConfigurationBuilder("si", "s")

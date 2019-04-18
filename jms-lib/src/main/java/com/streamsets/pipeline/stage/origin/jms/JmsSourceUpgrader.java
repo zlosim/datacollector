@@ -56,6 +56,12 @@ public class JmsSourceUpgrader implements StageUpgrader {
       // fall through
       case 5:
         upgradeV5ToV6(configs, context);
+        if (context.getToVersion() == 6) {
+          break;
+        }
+        // fall through
+      case 6:
+        upgradeV6ToV7(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", context.getFromVersion()));
@@ -69,6 +75,7 @@ public class JmsSourceUpgrader implements StageUpgrader {
 
   private static void upgradeV1ToV2(List<Config> configs) {
     configs.add(new Config("dataFormatConfig.compression", "NONE"));
+    configs.add(new Config("dataFormatConfig.useCustomDelimiter", false));
     configs.add(new Config("dataFormatConfig.filePatternInArchive", "*"));
   }
   private static void upgradeV2ToV3(List<Config> configs) {
@@ -92,10 +99,21 @@ public class JmsSourceUpgrader implements StageUpgrader {
     // Remove those configs
     configs.removeAll(dataFormatConfigs);
 
-    // Compression was originally hidden and hence we have to re-add it
-    dataFormatConfigs.add(new Config("dataFormatConfig.compression", "NONE"));
+    // There is an interesting history with compression - at some point (version 2), we explicitly added it, then
+    // we have hidden it. So this config might or might not exists, depending on the version in which the pipeline
+    // was created. However the service is expecting it and thus we need to ensure that it's there.
+    if(dataFormatConfigs.stream().noneMatch(c -> "dataFormatConfig.compression".equals(c.getName()))) {
+      dataFormatConfigs.add(new Config("dataFormatConfig.compression", "NONE"));
+    }
 
     // And finally register new service
     context.registerService(DataFormatParserService.class, dataFormatConfigs);
+  }
+
+  private static void upgradeV6ToV7(List<Config> configs) {
+    configs.add(new Config("jmsConfig.useClientID", false));
+    configs.add(new Config("jmsConfig.clientID", null));
+    configs.add(new Config("jmsConfig.durableSubscription", false));
+    configs.add(new Config("jmsConfig.durableSubscriptionName", null));
   }
 }

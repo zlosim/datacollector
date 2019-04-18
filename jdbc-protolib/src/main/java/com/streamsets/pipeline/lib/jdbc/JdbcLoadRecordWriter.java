@@ -23,7 +23,6 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.lib.operation.OperationType;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
-import com.zaxxer.hikari.proxy.ConnectionProxy;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.slf4j.Logger;
@@ -82,7 +81,8 @@ public class JdbcLoadRecordWriter extends JdbcBaseRecordWriter {
       List<JdbcFieldColumnParamMapping> customMappings,
       DuplicateKeyAction duplicateKeyAction,
       JdbcRecordReader recordReader,
-      boolean caseSensitive
+      boolean caseSensitive,
+      List<String> customDataSqlStateCodes
   ) throws StageException {
     super(
         connectionString,
@@ -95,7 +95,8 @@ public class JdbcLoadRecordWriter extends JdbcBaseRecordWriter {
         UnsupportedOperationAction.SEND_TO_ERROR,
         recordReader,
         null,
-        caseSensitive
+        caseSensitive,
+        customDataSqlStateCodes
     );
     this.duplicateKeyAction = duplicateKeyAction;
     String threadName = "JDBC LOAD DATA Stream " + getTableName();
@@ -138,7 +139,7 @@ public class JdbcLoadRecordWriter extends JdbcBaseRecordWriter {
     final String loadSql = "LOAD DATA LOCAL INFILE '' " + duplicateKeyAction.getKeyword()
         + " INTO TABLE " + getTableName() + " (" + Joiner.on(", ").join(columnNames) + ")";
     try (Connection connection = getDataSource().getConnection()) {
-      Connection conn = ((ConnectionProxy) connection).unwrap(Connection.class);
+      Connection conn = connection.unwrap(Connection.class);
       try (PreparedStatement statement = conn.prepareStatement(loadSql)) {
         PipedInputStream is = new PipedInputStream();
         PipedOutputStream os = new PipedOutputStream(is);
@@ -179,7 +180,7 @@ public class JdbcLoadRecordWriter extends JdbcBaseRecordWriter {
     } catch (SQLException e) {
       handleSqlException(e);
     } catch (Exception e) {
-      throw new StageException(JdbcErrors.JDBC_14, e.getMessage(), e);
+      throw new StageException(JdbcErrors.JDBC_58, e.getMessage(), e);
     }
     return errorRecords;
   }

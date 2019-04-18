@@ -253,7 +253,7 @@ public final class MultithreadedTableProvider {
 
         LOG.info(
             "Table {} has switched from non-partitioned to partitioned; using last stored offsets as the starting" +
-                " offsets for the new partition",
+                " offsets for the new partition {}",
             sourceTableContext.getQualifiedName(),
             newPartitionSequence
         );
@@ -399,8 +399,12 @@ public final class MultithreadedTableProvider {
               batchTableStrategy.getLabel()
           );
         }
+
+        // poll() should never return null since it is actually returning 'first' as we want to move it from the head
+        // of the queue, that's why we are calling offer, to basically remove it from the head but keep it in the queue
         TableRuntimeContext toMove = sharedAvailableTablesQueue.poll();
         sharedAvailableTablesQueue.offer(toMove);
+        // Get the new head of the queue
         first = sharedAvailableTablesQueue.peek();
       }
     }
@@ -723,8 +727,16 @@ public final class MultithreadedTableProvider {
       AtomicBoolean schemaFinished,
       List<String> schemaFinishedTables
   ) {
-
     final TableContext sourceContext = tableRuntimeContext.getSourceTableContext();
+
+    // When we see a table with data, we mark isNoMoreDataEventGeneratedAlready to false
+    // so we can generate event again if we don't see data from all tables.
+    if(recordCount > 0) {
+      isNoMoreDataEventGeneratedAlready = false;
+      tablesWithNoMoreData.remove(tableRuntimeContext.getSourceTableContext());
+      remainingSchemasToTableContexts.put(sourceContext.getSchema(), sourceContext);
+      completedSchemasToTableContexts.remove(sourceContext.getSchema(), sourceContext);
+    }
 
     // we need to account for the activeRuntimeContexts here
     // if there are still other active contexts in process, then this should do "nothing"
@@ -771,12 +783,8 @@ public final class MultithreadedTableProvider {
           }
         }
       }
-    } else {
-      //When we see a table with data, we mark isNoMoreDataEventGeneratedAlready to false
-      //so we can generate event again if we don't see data from all tables.
-      isNoMoreDataEventGeneratedAlready = false;
-      tablesWithNoMoreData.remove(tableRuntimeContext.getSourceTableContext());
     }
+
     if (LOG.isTraceEnabled()) {
       LOG.trace(
           "Just released table {}; Number of Tables With No More Data {}",
@@ -797,8 +805,6 @@ public final class MultithreadedTableProvider {
         !isNoMoreDataEventGeneratedAlready &&
             tablesWithNoMoreData.size() == tableContextMap.size());
     if (noMoreData) {
-      tablesWithNoMoreData.clear();
-      initializeRemainingSchemasToTableContexts();
       isNoMoreDataEventGeneratedAlready = true;
     }
     return noMoreData;

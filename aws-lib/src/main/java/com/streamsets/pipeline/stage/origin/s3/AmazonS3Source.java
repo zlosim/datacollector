@@ -16,6 +16,7 @@
 
 package com.streamsets.pipeline.stage.origin.s3;
 
+import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageException;
 
@@ -37,24 +38,17 @@ public interface AmazonS3Source {
   /**
    * Update one entry from offsets map
    *
-   * @param key to be removed
+   * @param runnerId to be updated
    */
-  void updateOffset(Integer key, S3Offset value);
+  void updateOffset(Integer runnerId, S3Offset s3Offset);
 
   /**
    * Get offset associated to a given key
    *
-   * @param key to search for
+   * @param runnerId for which we are looking for
    * @return offset associated
    */
-  S3Offset getOffset(Integer key);
-
-  /**
-   * Update latest offset read by the system
-   *
-   * @param offset offset to be set
-   */
-  void addNewLatestOffset(S3Offset offset);
+  S3Offset getOffset(Integer runnerId);
 
   /**
    * Get latest offset saved
@@ -62,4 +56,32 @@ public interface AmazonS3Source {
    * @return get latest offset saved
    */
   S3Offset getLatestOffset();
+
+  /**
+   * Increments the counter for records
+   */
+  long incrementNoMoreDataRecordCount();
+
+  /**
+   * Increments the counter for error records
+   */
+  long incrementNoMoreDataErrorCount();
+
+  /**
+   * Increments the counter for files
+   */
+  long incrementNoMoreDataFileCount();
+
+  /**
+   * Send the NO_MORE_DATA_EVENT if all the threads have finished processing the ongoing event
+   *
+   * @param batchContext batch context of the runner to create the event
+   * @return true if the event has been sent
+   */
+  boolean sendNoMoreDataEvent(BatchContext batchContext);
+
+  /**
+   * When a refill occurs the no-more-data event needs can be sent again
+   */
+  void restartNoMoreDataEvent();
 }

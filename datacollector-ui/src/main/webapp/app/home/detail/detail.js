@@ -396,9 +396,14 @@ angular
             },
             libraryList: function () {
               return [{
-                id: libraryId,
-                label: libraryId
+                stageLibraryManifest: {
+                  stageLibId: libraryId,
+                  stageLibLabel: libraryId
+                }
               }];
+            },
+            withStageLibVersion: function () {
+              return false; // TODO: Change to true when we update stage instance with StageLibVersion
             }
           }
         });

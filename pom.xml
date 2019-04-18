@@ -19,7 +19,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector</artifactId>
-  <version>3.7.0-SNAPSHOT</version>
+  <version>3.9.0-SNAPSHOT</version>
   <description>StreamSets Data Collector</description>
   <name>StreamSets Data Collector</name>
   <packaging>pom</packaging>
@@ -64,6 +64,7 @@
 
     <aerospike-lib>aerospike-lib</aerospike-lib>
     <aws-lib>aws-lib</aws-lib>
+    <aws-secrets-manager-credentialstore-lib>aws-secrets-manager-credentialstore-lib</aws-secrets-manager-credentialstore-lib>
     <azure-keyvault-credentialstore-lib>azure-keyvault-credentialstore-lib</azure-keyvault-credentialstore-lib>
     <basic-lib>basic-lib</basic-lib>
     <bigtable-lib>bigtable-lib</bigtable-lib>
@@ -89,8 +90,9 @@
     <wholefile-transformer-lib>wholefile-transformer-lib</wholefile-transformer-lib>
     <windows-lib>windows-lib</windows-lib>
     <rootProject>true</rootProject>
-    <datacollector-api.version>3.7.0-SNAPSHOT</datacollector-api.version>
-    <datacollector-spark-api.version>3.7.0-SNAPSHOT</datacollector-spark-api.version>
+    <datacollector-api.version>3.9.0-SNAPSHOT</datacollector-api.version>
+    <datacollector-spark-api.version>3.9.0-SNAPSHOT</datacollector-spark-api.version>
+    <thycotic-credentialstore-lib>thycotic-credentialstore-lib</thycotic-credentialstore-lib>
   </properties>
 
   <!-- StreamSets Data Collector API being used -->
@@ -169,6 +171,7 @@
     <module>sdc-kafka_0_11-common</module>
     <module>sdc-kafka_0_11</module>
     <module>sdc-kafka_1_0</module>
+    <module>sdc-kafka_0_11_mapr_6_1</module>
     <module>kafka-common</module>
     <module>kafka_source-protolib</module>
     <module>kafka_multisource-protolib</module>
@@ -212,6 +215,7 @@
     <module>sdc-solr-api</module>
     <module>sdc-solr_cdh_4</module>
     <module>sdc-solr_6</module>
+    <module>sdc-solr_7</module>
     <module>spark-executor-protolib</module>
     <module>spark-processor-protolib</module>
     <module>scripting-protolib</module>
@@ -229,6 +233,7 @@
     -->
     <module>aerospike-lib</module>
     <module>aws-lib</module>
+    <module>aws-secrets-manager-credentialstore-lib</module>
     <module>azure-lib</module>
     <module>azure-keyvault-credentialstore-lib</module>
     <module>basic-lib</module>
@@ -256,6 +261,7 @@
     <module>wholefile-transformer-lib</module>
     <module>windows-lib</module>
     <module>pulsar-protolib</module>
+    <module>thycotic-credentialstore-lib</module>
   </modules>
 
   <build>
@@ -340,6 +346,7 @@
             <exclude>commonlib/src/main/resources/*</exclude>
             <exclude>basic-lib/src/test/resources/*.ser</exclude>
             <exclude>**/id_rsa_test</exclude>
+            <exclude>**/id_rsa_test_unencrypted</exclude>
             <exclude>**/*.pub</exclude>
 
             <!-- TestOverrunStreamingXmlParser relies on this file being small, cannot add license header -->
@@ -368,6 +375,13 @@
         <version>3.1.2</version>
         <inherited>false</inherited>
         <configuration>
+          <!-- The plugin's report is not manageable since we don't control what stage libraries ship. The
+            GitHub interface is a bit more useful than this one.
+          -->
+          <skip>true</skip>
+
+          <!-- We don't have any .NET code -->
+          <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
           <!-- skip non-bundled jars -->
           <skipProvidedScope>true</skipProvidedScope>
           <skipRuntimeScope>true</skipRuntimeScope>
@@ -490,6 +504,7 @@
         <cdh_5_13-lib>cdh_5_13-lib</cdh_5_13-lib>
         <cdh_5_14-lib>cdh_5_14-lib</cdh_5_14-lib>
         <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
+        <cdh_5_16-lib>cdh_5_16-lib</cdh_5_16-lib>
         <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
         <cdh-spark_2_2-lib>cdh-spark_2_2-lib</cdh-spark_2_2-lib>
         <cdh-spark_2_3-lib>cdh-spark_2_3-lib</cdh-spark_2_3-lib>
@@ -505,8 +520,6 @@
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
-        <kinetica_6_0-lib>kinetica_6_0-lib</kinetica_6_0-lib>
-        <kinetica_6_1-lib>kinetica_6_1-lib</kinetica_6_1-lib>
         <hdp_2_2-lib>hdp_2_2-lib</hdp_2_2-lib>
         <hdp_2_3-lib>hdp_2_3-lib</hdp_2_3-lib>
         <hdp_2_3-hive1-lib>hdp_2_3-hive1-lib</hdp_2_3-hive1-lib>
@@ -519,13 +532,19 @@
         <hdp_2_6_2-hive1-lib>hdp_2_6_2-hive1-lib</hdp_2_6_2-hive1-lib>
         <hdp_2_6-hive2-lib>hdp_2_6-hive2-lib</hdp_2_6-hive2-lib>
         <hdp_2_6-flume-lib>hdp_2_6-flume-lib</hdp_2_6-flume-lib>
+        <hdp_3_1-lib>hdp_3_1-lib</hdp_3_1-lib>
         <jython_2_7-lib>jython_2_7-lib</jython_2_7-lib>
+        <kinetica_6_0-lib>kinetica_6_0-lib</kinetica_6_0-lib>
+        <kinetica_6_1-lib>kinetica_6_1-lib</kinetica_6_1-lib>
+        <kinetica_6_2-lib>kinetica_6_2-lib</kinetica_6_2-lib>
         <mapr_5_0-lib>mapr_5_0-lib</mapr_5_0-lib>
         <mapr_5_1-lib>mapr_5_1-lib</mapr_5_1-lib>
         <mapr_5_2-lib>mapr_5_2-lib</mapr_5_2-lib>
         <mapr_6_0-lib>mapr_6_0-lib</mapr_6_0-lib>
         <mapr_6_0-mep4-lib>mapr_6_0-mep4-lib</mapr_6_0-mep4-lib>
-        <mapr_6_0_mep5-lib>mapr_6_0-mep5-lib</mapr_6_0_mep5-lib>
+        <mapr_6_0-mep5-lib>mapr_6_0-mep5-lib</mapr_6_0-mep5-lib>
+        <mapr_6_1-lib>mapr_6_1-lib</mapr_6_1-lib>
+        <mapr_6_1-mep6-lib>mapr_6_1-mep6-lib</mapr_6_1-mep6-lib>
         <mapr_spark_2_1_mep_3_0-lib>mapr_spark_2_1_mep_3_0-lib</mapr_spark_2_1_mep_3_0-lib>
         <mongodb_3-lib>mongodb_3-lib</mongodb_3-lib>
         <databricks-ml_2-lib>databricks-ml_2-lib</databricks-ml_2-lib>
@@ -568,6 +587,7 @@
         <module>cdh_5_13-lib</module>
         <module>cdh_5_14-lib</module>
         <module>cdh_5_15-lib</module>
+        <module>cdh_5_16-lib</module>
         <module>cdh_6_0-lib</module>
         <module>cdh_kafka_1_2-lib</module>
         <module>cdh_kafka_1_3-lib</module>
@@ -585,6 +605,7 @@
         <module>groovy_2_4-lib</module>
         <module>kinetica_6_0-lib</module>
         <module>kinetica_6_1-lib</module>
+        <module>kinetica_6_2-lib</module>
         <module>hdp_2_2-lib</module>
         <module>hdp_2_3-lib</module>
         <module>hdp_2_3-hive1-lib</module>
@@ -597,6 +618,7 @@
         <module>hdp_2_6_2-hive1-lib</module>
         <module>hdp_2_6-hive2-lib</module>
         <module>hdp_2_6-flume-lib</module>
+        <module>hdp_3_1-lib</module>
         <module>jython_2_7-lib</module>
         <module>mapr_5_0-lib</module>
         <module>mapr_5_1-lib</module>
@@ -604,6 +626,8 @@
         <module>mapr_6_0-lib</module>
         <module>mapr_6_0-mep4-lib</module>
         <module>mapr_6_0-mep5-lib</module>
+        <module>mapr_6_1-lib</module>
+        <module>mapr_6_1-mep6-lib</module>
         <module>mapr_spark_2_1_mep_3_0-lib</module>
         <module>mongodb_3-lib</module>
         <module>databricks-ml_2-lib</module>
@@ -632,7 +656,7 @@
         <apache-solr_6_1_0-lib>apache-solr_6_1_0-lib</apache-solr_6_1_0-lib>
         <cassandra_3-lib>cassandra_3-lib</cassandra_3-lib>
         <cdh-spark_2_1-lib>cdh-spark_2_1-lib</cdh-spark_2_1-lib>
-        <cdh_5_15-lib>cdh_5_15-lib</cdh_5_15-lib>
+        <cdh_5_16-lib>cdh_5_16-lib</cdh_5_16-lib>
         <cdh_6_0-lib>cdh_6_0-lib</cdh_6_0-lib>
         <cdh_kafka_3_1-lib>cdh_kafka_3_1-lib</cdh_kafka_3_1-lib>
         <cdh_spark_2_1_r1-lib>cdh_spark_2_1_r1-lib</cdh_spark_2_1_r1-lib>
@@ -640,14 +664,15 @@
         <elasticsearch_5-lib>elasticsearch_5-lib</elasticsearch_5-lib>
         <emr_hadoop_2_8_3-lib>emr_hadoop_2_8_3-lib</emr_hadoop_2_8_3-lib>
         <groovy_2_4-lib>groovy_2_4-lib</groovy_2_4-lib>
-        <kinetica_6_1-lib>kinetica_6_1-lib</kinetica_6_1-lib>
         <hdp_2_6-lib>hdp_2_6-lib</hdp_2_6-lib>
         <hdp_2_6_2-hive1-lib>hdp_2_6_2-hive1-lib</hdp_2_6_2-hive1-lib>
         <hdp_2_6-hive2-lib>hdp_2_6-hive2-lib</hdp_2_6-hive2-lib>
         <hdp_2_6-flume-lib>hdp_2_6-flume-lib</hdp_2_6-flume-lib>
+        <hdp_3_1-lib>hdp_3_1-lib</hdp_3_1-lib>
         <jython_2_7-lib>jython_2_7-lib</jython_2_7-lib>
-        <mapr_6_0-lib>mapr_6_0-lib</mapr_6_0-lib>
-        <mapr_6_0-mep5-lib>mapr_6_0-mep5-lib</mapr_6_0-mep5-lib>
+        <kinetica_6_2-lib>kinetica_6_2-lib</kinetica_6_2-lib>
+        <mapr_6_1-lib>mapr_6_1-lib</mapr_6_1-lib>
+        <mapr_6_1-mep6-lib>mapr_6_1-mep6-lib</mapr_6_1-mep6-lib>
         <mapr_spark_2_1_mep_3_0-lib>mapr_spark_2_1_mep_3_0-lib</mapr_spark_2_1_mep_3_0-lib>
         <mongodb_3-lib>mongodb_3-lib</mongodb_3-lib>
         <azure-lib>azure_lib</azure-lib>
@@ -667,7 +692,7 @@
         <module>apache-solr_6_1_0-lib</module>
         <module>cassandra_3-lib</module>
         <module>cdh-spark_2_1-lib</module>
-        <module>cdh_5_15-lib</module>
+        <module>cdh_5_16-lib</module>
         <module>cdh_6_0-lib</module>
         <module>cdh_kafka_3_1-lib</module>
         <module>cdh_spark_2_1_r1-lib</module>
@@ -675,14 +700,15 @@
         <module>elasticsearch_5-lib</module>
         <module>emr_hadoop_2_8_3-lib</module>
         <module>groovy_2_4-lib</module>
-        <module>kinetica_6_1-lib</module>
+        <module>kinetica_6_2-lib</module>
         <module>hdp_2_6-lib</module>
         <module>hdp_2_6_2-hive1-lib</module>
         <module>hdp_2_6-hive2-lib</module>
         <module>hdp_2_6-flume-lib</module>
+        <module>hdp_3_1-lib</module>
         <module>jython_2_7-lib</module>
-        <module>mapr_6_0-lib</module>
-        <module>mapr_6_0-mep5-lib</module>
+        <module>mapr_6_1-lib</module>
+        <module>mapr_6_1-mep6-lib</module>
         <module>mapr_spark_2_1_mep_3_0-lib</module>
         <module>mongodb_3-lib</module>
         <module>databricks-ml_2-lib</module>

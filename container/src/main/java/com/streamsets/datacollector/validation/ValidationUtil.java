@@ -171,7 +171,7 @@ public class ValidationUtil {
           preview = false;
         }
       } else {
-        if (stageDef.getType() == StageType.SOURCE) {
+        if (!stageLibrary.isMultipleOriginSupported() && stageDef.getType() == StageType.SOURCE) {
           // no stage other than first stage can be a Source
           issues.add(issueCreator.create(stageConf.getInstanceName(), ValidationError.VALIDATION_0004));
           preview = false;
@@ -183,6 +183,7 @@ public class ValidationUtil {
             issueCreator.create(
                 stageConf.getInstanceName(),
                 ValidationError.VALIDATION_0016,
+                stageConf.getInstanceName(),
                 TextUtils.VALID_NAME
             )
         );
@@ -238,6 +239,23 @@ public class ValidationUtil {
         }
       }
 
+      // Special validation for stage exposed limit of input lanes
+      // -1: Means that framework is fully in control on how many input lanes should be present
+      //  0: Means that the stage supports unlimited number of input lanes
+      // >0: Means that stage needs exactly that amount of lanes which we will validate here
+      if(stageDef.getInputStreams() > 0) {
+        if(stageDef.getInputStreams() != stageConf.getInputLanes().size()) {
+           issues.add(
+              issueCreator.create(
+                  stageConf.getInstanceName(),
+                  ValidationError.VALIDATION_0094,
+                  stageDef.getInputStreams(),
+                  stageConf.getInputLanes().size()
+              )
+          );
+        }
+      }
+
       // Validate proper input/output lane configuration
       switch (stageDef.getType()) {
         case SOURCE:
@@ -253,7 +271,7 @@ public class ValidationUtil {
             );
             preview = false;
           }
-          if (!stageDef.isVariableOutputStreams()) {
+          if (!notOnMainCanvas && !stageDef.isVariableOutputStreams()) {
             // source stage must match the output stream defined in StageDef
             if (stageDef.getOutputStreams() != stageConf.getOutputLanes().size()) {
               issues.add(
@@ -265,7 +283,7 @@ public class ValidationUtil {
                   )
               );
             }
-          } else if (stageConf.getOutputLanes().isEmpty()) {
+          } else if (!notOnMainCanvas && stageConf.getOutputLanes().isEmpty()) {
             // source stage must have at least one output lane
             issues.add(issueCreator.create(stageConf.getInstanceName(), ValidationError.VALIDATION_0032));
           }
@@ -355,7 +373,7 @@ public class ValidationUtil {
       }
 
       // Validate proper event configuration
-      if(stageConf.getEventLanes().size() > 1) {
+      if(!notOnMainCanvas && stageConf.getEventLanes().size() > 1) {
         issues.add(
           issueCreator.create(
             stageConf.getInstanceName(),
@@ -364,7 +382,7 @@ public class ValidationUtil {
         );
         preview = false;
       }
-      if(!stageDef.isProducingEvents() && stageConf.getEventLanes().size() > 0) {
+      if(!notOnMainCanvas && !stageDef.isProducingEvents() && stageConf.getEventLanes().size() > 0) {
         issues.add(
           issueCreator.create(
             stageConf.getInstanceName(),

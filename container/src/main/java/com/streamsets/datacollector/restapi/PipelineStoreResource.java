@@ -71,6 +71,7 @@ import com.streamsets.datacollector.store.impl.AclPipelineStoreTask;
 import com.streamsets.datacollector.util.AuthzRole;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.EdgeUtil;
+import com.streamsets.datacollector.util.PipelineConfigurationUtil;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.validation.DetachedStageValidator;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
@@ -158,14 +159,10 @@ public class PipelineStoreResource {
   private static final String BATCH_TIME_METRIC_ID = "RuntimeStatsGauge.gauge";
   private static final String BATCH_TIME_CONDITION = "${value() > 200}";
 
-  private static final String MEMORY_LIMIt_ID = "memoryLimitAlertID";
-  private static final String MEMORY_LIMIt_TEXT = "Memory limit for pipeline exceeded";
-  private static final String MEMORY_LIMIt_METRIC_ID = "pipeline.memoryConsumed.counter";
-  private static final String MEMORY_LIMIt_CONDITION = "${value() > (jvm:maxMemoryMB() * 0.65)}";
-
   private static final String DPM_PIPELINE_ID = "dpm.pipeline.id";
 
   private static final String DATA_COLLECTOR_EDGE = "DATA_COLLECTOR_EDGE";
+  private static final String STREAMING_MODE = "STREAMING";
   private static final String MICROSERVICE = "MICROSERVICE";
 
   private static final String SYSTEM_ALL_PIPELINES = "system:allPipelines";
@@ -180,7 +177,7 @@ public class PipelineStoreResource {
   private static final String SYSTEM_ERROR_PIPELINES = "system:errorPipelines";
   private static final String SHARED_WITH_ME_PIPELINES = "system:sharedWithMePipelines";
 
-  public static final String SAMPLE_MICROSERVICE_PIPELINE = "sampleMicroservicePipeline.json";
+  private static final String SAMPLE_MICROSERVICE_PIPELINE = "sampleMicroservicePipeline.json";
 
   private static final String PIPELINE_IDS = "pipelineIds";
 
@@ -621,6 +618,7 @@ public class PipelineStoreResource {
   public Response exportPipelines(
       List<String> pipelineIds,
       @QueryParam("includeLibraryDefinitions") @DefaultValue("false") boolean includeLibraryDefinitions,
+      @QueryParam("includePlainTextCredentials") @DefaultValue("true") boolean includePlainTextCredentials,
       @Context SecurityContext context
   ) {
     RestAPIUtils.injectPipelineInMDC("*");
@@ -636,7 +634,8 @@ public class PipelineStoreResource {
               pipelineConfig,
               ruleDefinitions,
               serviceDefinitions,
-              includeLibraryDefinitions
+              includeLibraryDefinitions,
+              includePlainTextCredentials
           );
           pipelineZip.putNextEntry(new ZipEntry(pipelineConfig.getPipelineId() + ".json"));
           pipelineZip.write(ObjectMapperFactory.get().writeValueAsString(pipelineEnvelope).getBytes());
@@ -715,7 +714,8 @@ public class PipelineStoreResource {
       @QueryParam("description") @DefaultValue("") String description,
       @QueryParam("autoGeneratePipelineId") @DefaultValue("false") boolean autoGeneratePipelineId,
       @QueryParam("draft") @DefaultValue("false") boolean draft,
-      @QueryParam("pipelineType") @DefaultValue("DATA_COLLECTOR") String pipelineType
+      @QueryParam("pipelineType") @DefaultValue("DATA_COLLECTOR") String pipelineType,
+      @QueryParam("pipelineLabel") @DefaultValue("") String pipelineLabel
   ) throws PipelineException, IOException {
     String pipelineId = pipelineTitle;
     if (autoGeneratePipelineId) {
@@ -730,6 +730,21 @@ public class PipelineStoreResource {
       List<Config> newConfigs = createWithNewConfig(
           pipelineConfig.getConfiguration(),
           new Config("executionMode", ExecutionMode.EDGE.name())
+      );
+      pipelineConfig.setConfiguration(newConfigs);
+      if (!draft) {
+        pipelineConfig = store.save(
+            user,
+            pipelineConfig.getPipelineId(),
+            pipelineConfig.getInfo().getLastRev(),
+            pipelineConfig.getDescription(),
+            pipelineConfig
+        );
+      }
+    } else if (pipelineType.equals(STREAMING_MODE)) {
+      List<Config> newConfigs = createWithNewConfig(
+          pipelineConfig.getConfiguration(),
+          new Config("executionMode", ExecutionMode.STREAMING.name())
       );
       pipelineConfig.setConfiguration(newConfigs);
       if (!draft) {
@@ -791,9 +806,6 @@ public class PipelineStoreResource {
     metricsRuleDefinitions.add(new MetricsRuleDefinition(BATCH_TIME_ID, BATCH_TIME_TEXT, BATCH_TIME_METRIC_ID,
         MetricType.GAUGE, MetricElement.CURRENT_BATCH_AGE, BATCH_TIME_CONDITION, false, false, timestamp));
 
-    metricsRuleDefinitions.add(new MetricsRuleDefinition(MEMORY_LIMIt_ID, MEMORY_LIMIt_TEXT, MEMORY_LIMIt_METRIC_ID,
-        MetricType.COUNTER, MetricElement.COUNTER_COUNT, MEMORY_LIMIt_CONDITION, false, false, timestamp));
-
     RuleDefinitions ruleDefinitions = new RuleDefinitions(
         PipelineStoreTask.RULE_DEFINITIONS_SCHEMA_VERSION,
         RuleDefinitionsConfigBean.VERSION,
@@ -806,6 +818,20 @@ public class PipelineStoreResource {
     );
     store.storeRules(pipelineId, "0", ruleDefinitions, draft);
 
+    if (!pipelineLabel.isEmpty()) {
+      Map<String, Object> metadata = pipelineConfig.getMetadata();
+
+      metadata = metadata == null ? new HashMap<>() : metadata;
+
+      Object objLabels = metadata.get("labels");
+      List<String> metaLabels = objLabels == null ? new ArrayList<>() : (List<String>) objLabels;
+      metaLabels.add(pipelineLabel);
+
+      metadata.put("labels", metaLabels);
+      store.saveMetadata(user, pipelineId, "0", metadata);
+    }
+
+
     PipelineConfigurationValidator validator = new PipelineConfigurationValidator(
         stageLibrary,
         pipelineId,
@@ -815,7 +841,13 @@ public class PipelineStoreResource {
 
     if (draft) {
       return Response.created(UriBuilder.fromUri(uri).path(pipelineId).build())
-          .entity(getPipelineEnvelope(pipelineConfig, ruleDefinitions, stageLibrary.getServiceDefinitions(), false))
+          .entity(getPipelineEnvelope(
+              pipelineConfig,
+              ruleDefinitions,
+              stageLibrary.getServiceDefinitions(),
+              false,
+              true
+          ))
           .build();
     } else {
       return Response.created(UriBuilder.fromUri(uri).path(pipelineId).build()).entity(
@@ -1066,7 +1098,8 @@ public class PipelineStoreResource {
       @PathParam("pipelineId") String name,
       @QueryParam("rev") @DefaultValue("0") String rev,
       @QueryParam("attachment") @DefaultValue("false") Boolean attachment,
-      @QueryParam("includeLibraryDefinitions") @DefaultValue("false") boolean includeLibraryDefinitions
+      @QueryParam("includeLibraryDefinitions") @DefaultValue("false") boolean includeLibraryDefinitions,
+      @QueryParam("includePlainTextCredentials") @DefaultValue("true") boolean includePlainTextCredentials
   ) throws PipelineException {
     PipelineInfo pipelineInfo = store.getInfo(name);
     RestAPIUtils.injectPipelineInMDC(pipelineInfo.getTitle(), pipelineInfo.getPipelineId());
@@ -1079,7 +1112,8 @@ public class PipelineStoreResource {
         pipelineConfig,
         ruleDefinitions,
         stageLibrary.getServiceDefinitions(),
-        includeLibraryDefinitions
+        includeLibraryDefinitions,
+        includePlainTextCredentials
     );
 
     if (attachment) {
@@ -1124,8 +1158,12 @@ public class PipelineStoreResource {
       PipelineConfiguration pipelineConfig,
       RuleDefinitions ruleDefinitions,
       List<ServiceDefinition> serviceDefinitions,
-      boolean includeLibraryDefinitions
+      boolean includeLibraryDefinitions,
+      boolean includePlainTextCredentials
   ) {
+    if (!includePlainTextCredentials) {
+      PipelineConfigurationUtil.stripPipelineConfigPlainCredentials(pipelineConfig, stageLibrary);
+    }
     PipelineEnvelopeJson pipelineEnvelope = new PipelineEnvelopeJson();
     pipelineEnvelope.setPipelineConfig(BeanHelper.wrapPipelineConfiguration(pipelineConfig));
     pipelineEnvelope.setPipelineRules(BeanHelper.wrapRuleDefinitions(ruleDefinitions));
@@ -1338,13 +1376,11 @@ public class PipelineStoreResource {
   }
 
   private PipelineEnvelopeJson getPipelineEnvelopeFromFromUrl(String pipelineHttpUrl) throws IOException {
-    Response response = null;
     PipelineEnvelopeJson pipelineEnvelope = null;
-    try {
-      response = ClientBuilder.newClient()
-          .target(pipelineHttpUrl)
-          .request()
-          .get();
+    try (Response response = ClientBuilder.newClient()
+        .target(pipelineHttpUrl)
+        .request()
+        .get()) {
       if (response.getStatus() != Response.Status.OK.getStatusCode()) {
         throw new RuntimeException(Utils.format("Failed to fetch pipeline from URL '{}' status code '{}': {}",
             pipelineHttpUrl,
@@ -1376,10 +1412,6 @@ public class PipelineStoreResource {
             stageLibrary.getPipelineRules().getPipelineRulesDefaultConfigs()
         );
         pipelineEnvelope.setPipelineRules(BeanHelper.wrapRuleDefinitions(ruleDefinitions));
-      }
-    } finally {
-      if (response != null) {
-        response.close();
       }
     }
     return pipelineEnvelope;
@@ -1457,7 +1489,8 @@ public class PipelineStoreResource {
         pipelineConfig,
         ruleDefinitions,
         stageLibrary.getServiceDefinitions(),
-        includeLibraryDefinitions
+        includeLibraryDefinitions,
+        true
     );
   }
 

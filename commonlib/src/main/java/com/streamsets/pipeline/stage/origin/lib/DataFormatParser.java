@@ -48,6 +48,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,7 +177,7 @@ public class DataFormatParser {
             dataFormatConfig.customLogFormat,
             dataFormatConfig.regex,
             dataFormatConfig.grokPatternDefinition,
-            dataFormatConfig.grokPattern,
+            Arrays.asList(dataFormatConfig.grokPattern),
             dataFormatConfig.enableLog4jCustomLogFormat,
             dataFormatConfig.log4jCustomLogFormat,
             dataFormatConfig.onParseError,
@@ -342,7 +343,13 @@ public class DataFormatParser {
           .setConfig(DelimitedDataConstants.IGNORE_EMPTY_LINES_CONFIG, dataFormatConfig.csvIgnoreEmptyLines)
           .setConfig(DelimitedDataConstants.ALLOW_EXTRA_COLUMNS, dataFormatConfig.csvAllowExtraColumns)
           .setConfig(DelimitedDataConstants.EXTRA_COLUMN_PREFIX, dataFormatConfig.csvExtraColumnPrefix)
-          ;
+          .setConfig(
+              DelimitedDataConstants.MULTI_CHARACTER_FIELD_DELIMITER_CONFIG,
+              dataFormatConfig.multiCharacterFieldDelimiter
+          ).setConfig(
+              DelimitedDataConstants.MULTI_CHARACTER_LINE_DELIMITER_CONFIG,
+              dataFormatConfig.multiCharacterLineDelimiter
+          );
         break;
       case XML:
         builder.setMaxDataLen(dataFormatConfig.xmlMaxObjectLen);

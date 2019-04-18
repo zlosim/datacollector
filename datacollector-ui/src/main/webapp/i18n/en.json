@@ -91,6 +91,7 @@
       "execute": "Execute",
       "executor": "Executor",
       "export": "Export",
+      "exportWithPlainTextCredentials": "Export with Plain Text Credentials",
       "exportWithLibraryDefinitions": "Export for Control Hub",
       "fieldName": "Field Name",
       "fieldName.placeholder": "New Field Name",
@@ -647,6 +648,7 @@
       "duplicatePipelineDefinition": "Duplicate Pipeline Definition",
       "emptyPipelineList": "No Pipeline to view.",
       "httpUrlPlaceholder": "Pipeline Definition HTTP URL",
+      "labelPlaceholder": "Pipeline Label",
       "newPipelineDefinition": "New Pipeline",
       "namePlaceholder": "Pipeline Definition Title",
       "nameRequiredValidation": "Please enter title of the pipeline.",
@@ -861,7 +863,7 @@
       "uninstall": "Uninstall"
     },
     "install": {
-      "confirmationMessage": "Are you sure you want to install below stage libraries?",
+      "confirmationMessage": "Are you sure you want to install the following stage libraries?",
       "successMessage": "Successfully installed stage libraries. Restart the Data Collector for the changes to take effect.",
       "title": "Install Stage Library"
     },
@@ -870,7 +872,7 @@
     "noStageLibrariesExtras": "No Additional Drivers Found",
     "title": "Package Manager",
     "uninstall": {
-      "confirmationMessage": "Are you sure you want to uninstall below stage libraries?",
+      "confirmationMessage": "Are you sure you want to uninstall the following stage libraries?",
       "successMessage": "Successfully uninstalled stage libraries. Restart the Data Collector for the changes to take effect.",
       "title": "Uninstall Stage Library"
     },

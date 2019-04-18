@@ -56,6 +56,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   private final String tableName;
   private final boolean rollbackOnError;
   private final boolean caseSensitive;
+  private final List<String> customDataSqlStateCodes;
 
   private Map<String, String> columnsToFields = new HashMap<>();
   private Map<String, String> columnsToParameters = new HashMap<>();
@@ -109,6 +110,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   // Index of columns returned by DatabaseMetaData.getColumns. Defined in DatabaseMetaData class.
   private static final int COLUMN_NAME = 4;
   private static final int DATA_TYPE = 5;
+  private static final String MSSQL = "Microsoft";
 
   private final int defaultOpCode;
   private final UnsupportedOperationAction unsupportedAction;
@@ -127,7 +129,8 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
       UnsupportedOperationAction unsupportedAction,
       JdbcRecordReader recordReader,
       List<JdbcFieldColumnMapping> generatedColumnMappings,
-      boolean caseSensitive
+      boolean caseSensitive,
+      List<String> customDataSqlStateCodes
   ) throws StageException {
     this.jdbcUtil = UtilsProvider.getJdbcUtil();
 
@@ -157,6 +160,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
     this.recordReader = recordReader;
     this.generatedColumnMappings = generatedColumnMappings;
     this.caseSensitive = caseSensitive;
+    this.customDataSqlStateCodes = customDataSqlStateCodes;
 
     createDefaultFieldMappings();
     createCustomFieldMappings();
@@ -297,6 +301,14 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
    */
   protected String getConnectionString() {
     return connectionString;
+  }
+
+  /**
+   * Return custom list of sql error codes that should be consider 'data' oriented.
+   * @return
+   */
+  protected List<String> getCustomDataSqlStateCodes() {
+    return this.customDataSqlStateCodes;
   }
 
   /**
@@ -596,7 +608,17 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
               statement.setObject(paramIdx, value, getColumnType(column));
               break;
             }
-            statement.setBigDecimal(paramIdx, (BigDecimal)value);
+            if (connection.getMetaData().getDriverName().contains(MSSQL)) {
+              LOG.debug(
+                  "Since {} is being used we will send the record as object",
+                  connection.getMetaData().getDriverName()
+              );
+              // Microsoft SQL Server JDBC Driver doesn't implement setBigDecimal() properly, it's better to always
+              // use setObject which have reasonable behavior.
+              statement.setObject(paramIdx, value, getColumnType(column));
+              break;
+            }
+            statement.setBigDecimal(paramIdx, (BigDecimal) value);
             break;
           case BYTE_ARRAY:
             if (!isColumnTypeBinary(columnType)) {
@@ -672,7 +694,7 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   void handleSqlException(SQLException e) throws StageException {
     String formattedError = jdbcUtil.formatSqlException(e);
     LOG.error(formattedError, e);
-    throw new StageException(JdbcErrors.JDBC_14, formattedError);
+    throw new StageException(JdbcErrors.JDBC_14, e.getSQLState(), e.getErrorCode(), e.getMessage(), formattedError, e);
   }
 
   /**

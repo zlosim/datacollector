@@ -242,16 +242,16 @@ public class TestTCPServerSource {
         TEN_DELIMITED_RECORDS.getBytes(charset),
         true
     );
+    final Channel channel = channelFuture.channel();
+    TCPServerSourceClientHandler clientHandler = channel.pipeline().get(TCPServerSourceClientHandler.class);
 
     runner.runProduce(new HashMap<>(), batchSize, output -> {
       records.addAll(output.getRecords().get(outputLane));
       runner.setStop();
     });
-    runner.waitOnProduce();
 
     // Wait until the connection is closed.
-    final Channel channel = channelFuture.channel();
-    TCPServerSourceClientHandler clientHandler = channel.pipeline().get(TCPServerSourceClientHandler.class);
+    runner.waitOnProduce();
 
     final List<String> responses = new LinkedList<>();
     for (int i = 0; i < batchSize + 1; i++) {
@@ -462,6 +462,9 @@ public class TestTCPServerSource {
     // Wait until the connection is closed.
     channelFuture.channel().closeFuture().sync();
 
+    if (runner.getContext().getOnErrorRecord() != OnRecordError.STOP_PIPELINE) {
+      runner.setStop();
+    }
     // wait for the push source runner produce to complete
     runner.waitOnProduce();
 
@@ -489,6 +492,7 @@ public class TestTCPServerSource {
     Bootstrap bootstrap = new Bootstrap();
     bootstrap.group(workerGroup);
     bootstrap.channel(NioSocketChannel.class);
+    bootstrap.remoteAddress(new InetSocketAddress("localhost", Integer.parseInt(configBean.ports.get(0))));
     bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
     bootstrap.handler(new ChannelInitializer() {
       @Override
@@ -498,7 +502,7 @@ public class TestTCPServerSource {
     });
 
     // Start the client.
-    channelFuture = bootstrap.connect("localhost", Integer.parseInt(configBean.ports.get(0))).sync();
+    channelFuture = bootstrap.connect().sync();
 
     return channelFuture;
   }
@@ -570,6 +574,8 @@ public class TestTCPServerSource {
     config.maxMessageSize = 4096;
     config.ports = randomSinglePort();
     config.maxWaitTime = 1000;
+    config.recordProcessedAckMessage = "record processed";
+    config.batchCompletedAckMessage = "batch processed";
     return config;
   }
 

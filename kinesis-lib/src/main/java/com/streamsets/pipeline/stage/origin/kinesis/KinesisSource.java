@@ -208,11 +208,12 @@ public class KinesisSource extends BasePushSource {
         .withMaxRecords(maxBatchSize)
         .withCallProcessRecordsEvenForEmptyRecordList(false)
         .withIdleTimeBetweenReadsInMillis(conf.idleTimeBetweenReads)
-        .withInitialPositionInStream(conf.initialPositionInStream)
         .withKinesisClientConfig(clientConfiguration);
 
     if (conf.initialPositionInStream == InitialPositionInStream.AT_TIMESTAMP) {
       kclConfig.withTimestampAtInitialPositionInStream(new Date(conf.initialTimestamp));
+    } else if (conf.initialPositionInStream == InitialPositionInStream.LATEST || conf.initialPositionInStream == InitialPositionInStream.TRIM_HORIZON) {
+      kclConfig.withInitialPositionInStream(conf.initialPositionInStream);
     }
 
     if (conf.region == AwsRegion.OTHER) {
@@ -253,6 +254,10 @@ public class KinesisSource extends BasePushSource {
     getShardIteratorRequest.setStreamName(conf.streamName);
     getShardIteratorRequest.setShardId(shardId);
     getShardIteratorRequest.setShardIteratorType(conf.initialPositionInStream.name());
+
+    if (conf.initialPositionInStream == InitialPositionInStream.AT_TIMESTAMP) {
+      getShardIteratorRequest.setTimestamp(new Date(conf.initialTimestamp));
+    }
 
     List<com.amazonaws.services.kinesis.model.Record> results = KinesisUtil.getPreviewRecords(
         awsClientConfig,
@@ -341,7 +346,9 @@ public class KinesisSource extends BasePushSource {
         getContext(),
         parserFactory,
         Math.min(conf.maxBatchSize, maxBatchSize),
-        error
+        error,
+        conf.throttleWaitTime,
+        conf.throttleMaxRetries
     );
 
     // Create the KCL worker with the StreamSets record processor factory

@@ -41,4 +41,16 @@ public class TestRestServicePushSourceUpgrader {
     );
   }
 
+  @Test
+  public void testV2ToV3() throws Exception {
+    List<Config> configs = new LinkedList<>();
+    RestServicePushSourceUpgrader upgrader = new RestServicePushSourceUpgrader();
+    TestUpgraderContext context = new TestUpgraderContext("l", "s", "i", 2, 3);
+    upgrader.upgrade(configs, context);
+    UpgraderTestUtils.assertAllExist(
+        configs,
+        "responseConfig.sendRawResponse"
+    );
+  }
+
 }

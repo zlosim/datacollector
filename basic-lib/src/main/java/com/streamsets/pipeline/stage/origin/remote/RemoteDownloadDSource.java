@@ -25,9 +25,9 @@ import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.base.configurablestage.DSource;
 
 @StageDef(
-    version = 3,
-    label = "SFTP FTP Client",
-    description = "Uses an SFTP/FTP client to read records from an URL.",
+    version = 4,
+    label = "SFTP/FTP Client",
+    description = "Uses an SFTP/FTP client to read data from a URL.",
     icon = "sftp-client.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
@@ -36,7 +36,7 @@ import com.streamsets.pipeline.api.base.configurablestage.DSource;
     upgrader = RemoteDownloadSourceUpgrader.class,
     onlineHelpRefUrl ="index.html?contextID=task_lfx_fzd_5v"
 )
-@HideConfigs(value = {"conf.dataFormatConfig.verifyChecksum"})
+@HideConfigs(value = {"conf.dataFormatConfig.verifyChecksum", "conf.remoteConfig.createPathIfNotExists"})
 @GenerateResourceBundle
 @ConfigGroups(Groups.class)
 public class RemoteDownloadDSource extends DSource {

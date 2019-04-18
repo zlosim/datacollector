@@ -38,15 +38,13 @@ public class ShimUtil {
       return new RecoverableDataParserException(
         ((com.streamsets.pipeline.lib.parser.RecoverableDataParserException) original).getUnparsedRecord(),
         original.getErrorCode(),
-        original.getParams(),
-        original.getCause()
+        original.getParams()
       );
     }
 
     return new DataParserException(
       original.getErrorCode(),
-      original.getParams(),
-      original.getCause()
+      original.getParams()
     );
   }
 
@@ -61,8 +59,7 @@ public class ShimUtil {
   ) {
    return new DataGeneratorException(
       original.getErrorCode(),
-      original.getParams(),
-      original.getCause()
+      original.getParams()
     );
   }
 

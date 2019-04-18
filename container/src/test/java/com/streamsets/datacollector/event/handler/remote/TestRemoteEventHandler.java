@@ -41,21 +41,33 @@ import com.streamsets.datacollector.event.dto.BlobDeleteVersionEvent;
 import com.streamsets.datacollector.event.dto.BlobStoreEvent;
 import com.streamsets.datacollector.event.dto.ClientEvent;
 import com.streamsets.datacollector.event.dto.EventType;
+import com.streamsets.datacollector.event.dto.PipelinePreviewEvent;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.dto.SDCBuildInfo;
 import com.streamsets.datacollector.event.dto.SDCInfoEvent;
 import com.streamsets.datacollector.event.dto.SaveConfigurationEvent;
 import com.streamsets.datacollector.event.dto.StageInfo;
 import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask.EventHandlerCallable;
+import com.streamsets.datacollector.event.json.BlobDeleteVersionEventJson;
+import com.streamsets.datacollector.event.json.BlobStoreEventJson;
 import com.streamsets.datacollector.event.json.ClientEventJson;
 import com.streamsets.datacollector.event.json.DisconnectedSsoCredentialsEventJson;
 import com.streamsets.datacollector.event.json.PingFrequencyAdjustmentEventJson;
 import com.streamsets.datacollector.event.json.PipelineBaseEventJson;
+import com.streamsets.datacollector.event.json.PipelineDeleteEventJson;
+import com.streamsets.datacollector.event.json.PipelineHistoryDeleteEventJson;
+import com.streamsets.datacollector.event.json.PipelineResetEventJson;
 import com.streamsets.datacollector.event.json.PipelineSaveEventJson;
 import com.streamsets.datacollector.event.json.PipelineSaveRulesEventJson;
+import com.streamsets.datacollector.event.json.PipelineStartEventJson;
 import com.streamsets.datacollector.event.json.PipelineStatusEventJson;
 import com.streamsets.datacollector.event.json.PipelineStatusEventsJson;
+import com.streamsets.datacollector.event.json.PipelineStopAndDeleteEventJson;
+import com.streamsets.datacollector.event.json.PipelineStopEventJson;
+import com.streamsets.datacollector.event.json.PipelineValidateEventJson;
 import com.streamsets.datacollector.event.json.SDCInfoEventJson;
+import com.streamsets.datacollector.event.json.SaveConfigurationEventJson;
 import com.streamsets.datacollector.event.json.ServerEventJson;
 import com.streamsets.datacollector.event.json.StageInfoJson;
 import com.streamsets.datacollector.event.json.SyncAclEventJson;
@@ -68,9 +80,12 @@ import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
 import com.streamsets.datacollector.runner.MockStages;
+import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.SourceOffset;
+import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.lib.security.acl.dto.Acl;
@@ -78,6 +93,7 @@ import com.streamsets.lib.security.acl.json.AclJson;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -94,8 +110,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 
-import static org.junit.Assert.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.empty;
 
 public class TestRemoteEventHandler {
 
@@ -126,14 +152,21 @@ public class TestRemoteEventHandler {
         List<ClientEventJson> clientEventJson
     ) throws EventException {
       this.clientJson = clientEventJson;
-      PipelineBaseEventJson pipelineBaseEventJson = new PipelineBaseEventJson();
-      pipelineBaseEventJson.setName("name");
-      pipelineBaseEventJson.setRev("rev");
-      pipelineBaseEventJson.setUser("user");
+      final String name = "name";
+      final String rev = "rev";
+      final String user = "user";
 
-      BlobStoreEvent blobStoreEvent = new BlobStoreEvent("n", "a", 1, "X");
-      BlobDeleteVersionEvent blobDeleteEvent = new BlobDeleteVersionEvent("n", "a", 1);
-      SaveConfigurationEvent saveConfigurationEvent = new SaveConfigurationEvent(Collections.singletonMap("a", "b"));
+      BlobStoreEventJson blobStoreEvent = new BlobStoreEventJson();
+      blobStoreEvent.setNamespace("n");
+      blobStoreEvent.setVersion(1l);
+      blobStoreEvent.setId("a");
+      blobStoreEvent.setContent("X");
+      BlobDeleteVersionEventJson blobDeleteEvent = new BlobDeleteVersionEventJson();
+      blobDeleteEvent.setNamespace("n");
+      blobDeleteEvent.setVersion(1l);
+      blobDeleteEvent.setId("a");
+      SaveConfigurationEventJson saveConfigurationEvent = new SaveConfigurationEventJson();
+      saveConfigurationEvent.setConfiguration(Collections.singletonMap("a", "b"));
 
       List<ServerEventJson> serverEventJsonList = new ArrayList<ServerEventJson>();
       try {
@@ -154,7 +187,7 @@ public class TestRemoteEventHandler {
             EventType.START_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createStartEvent(name, rev, user))
         );
         setServerEvent(
             serverEventJson2,
@@ -162,7 +195,7 @@ public class TestRemoteEventHandler {
             EventType.STOP_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createStopEvent(name, rev, user))
         );
         setServerEvent(
             serverEventJson3,
@@ -170,14 +203,14 @@ public class TestRemoteEventHandler {
             EventType.DELETE_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createDeleteEvent(name, rev, user))
         );
         setServerEvent(serverEventJson4,
             id4.toString(),
             EventType.DELETE_HISTORY_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createHistoryDeleteEvent(name, rev, user))
         );
         setServerEvent(
             serverEventJson5,
@@ -185,14 +218,14 @@ public class TestRemoteEventHandler {
             EventType.VALIDATE_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createValidateEvent(name, rev, user))
         );
         setServerEvent(serverEventJson6,
             id6.toString(),
             EventType.RESET_OFFSET_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createResetEvent(name, rev, user))
         );
         setServerEvent(
             serverEventJson7,
@@ -200,7 +233,7 @@ public class TestRemoteEventHandler {
             EventType.STOP_DELETE_PIPELINE,
             false,
             true,
-            jsonDto.serialize(pipelineBaseEventJson)
+            jsonDto.serialize(createStopAndDeleteEvent(name, rev, user))
         );
         setServerEvent(
             serverEventJson9,
@@ -257,7 +290,70 @@ public class TestRemoteEventHandler {
       }
       return serverEventJsonList;
     }
+  }
 
+  private static PipelineStartEventJson createStartEvent(String name, String rev, String user) {
+    return setBaseEventPropertiesAndReturn(new PipelineStartEventJson(), name, rev, user);
+  }
+
+  private static PipelineStopEventJson createStopEvent(String name, String rev, String user) {
+    final PipelineStopEventJson stopEventJson = new PipelineStopEventJson();
+    stopEventJson.setName(name);
+    stopEventJson.setRev(rev);
+    stopEventJson.setUser(user);
+    return stopEventJson;
+  }
+
+  private static PipelineDeleteEventJson createDeleteEvent(String name, String rev, String user) {
+    final PipelineDeleteEventJson deleteEventJson = new PipelineDeleteEventJson();
+    deleteEventJson.setName(name);
+    deleteEventJson.setRev(rev);
+    deleteEventJson.setUser(user);
+    return deleteEventJson;
+  }
+
+  private static PipelineHistoryDeleteEventJson createHistoryDeleteEvent(String name, String rev, String user) {
+    final PipelineHistoryDeleteEventJson deleteHistoryEventJson = new PipelineHistoryDeleteEventJson();
+    deleteHistoryEventJson.setName(name);
+    deleteHistoryEventJson.setRev(rev);
+    deleteHistoryEventJson.setUser(user);
+    return deleteHistoryEventJson;
+  }
+
+  private static PipelineValidateEventJson createValidateEvent(String name, String rev, String user) {
+    final PipelineValidateEventJson validateEventJson = new PipelineValidateEventJson();
+    validateEventJson.setName(name);
+    validateEventJson.setRev(rev);
+    validateEventJson.setUser(user);
+    return validateEventJson;
+  }
+
+  private static PipelineResetEventJson createResetEvent(String name, String rev, String user) {
+    final PipelineResetEventJson resetEventJson = new PipelineResetEventJson();
+    resetEventJson.setName(name);
+    resetEventJson.setRev(rev);
+    resetEventJson.setUser(user);
+    return resetEventJson;
+  }
+
+  private static PipelineStopAndDeleteEventJson createStopAndDeleteEvent(String name, String rev, String user) {
+    final PipelineStopAndDeleteEventJson stopAndDeleteEventJson = new PipelineStopAndDeleteEventJson();
+    stopAndDeleteEventJson.setName(name);
+    stopAndDeleteEventJson.setRev(rev);
+    stopAndDeleteEventJson.setUser(user);
+    return stopAndDeleteEventJson;
+  }
+
+  private static <E extends PipelineBaseEventJson> E setBaseEventPropertiesAndReturn(
+      E baseEvent,
+      String name,
+      String rev,
+      String user
+  ) {
+    baseEvent.setName(name);
+    baseEvent.setRev(rev);
+    baseEvent.setUser(user);
+    return baseEvent;
   }
 
   private static void setServerEvent(
@@ -434,7 +530,7 @@ public class TestRemoteEventHandler {
 
     @Override
     public void init() {
-
+      // no-op
     }
 
     @Override
@@ -469,7 +565,7 @@ public class TestRemoteEventHandler {
     }
 
     @Override
-    public void savePipeline(
+    public String savePipeline(
         String user,
         String name, String rev,
         String description,
@@ -478,6 +574,7 @@ public class TestRemoteEventHandler {
         RuleDefinitions ruleDefinitions, Acl acl, Map<String, Object> metadata
     ) throws PipelineStoreException {
       savePipelineCalled = true;
+      return "";
     }
 
     @Override
@@ -499,8 +596,33 @@ public class TestRemoteEventHandler {
     }
 
     @Override
-    public void validateConfigs(String user, String name, String rev) throws PipelineException {
+    public void validateConfigs(
+        String user,
+        String name,
+        String rev,
+        List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs
+    ) throws PipelineException {
       validateConfigsCalled = true;
+    }
+
+    @Override
+    public String previewPipeline(
+        String user,
+        String name,
+        String rev,
+        int batches,
+        int batchSize,
+        boolean skipTargets,
+        boolean skipLifecycleEvents,
+        String stopStage,
+        List<StageOutput> stagesOverride,
+        long timeoutMillis,
+        boolean testOrigin,
+        List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+        Function<Object, Void> afterActionsFunction
+    ) throws PipelineException {
+      // no-op for now
+      return null;
     }
 
     @Override
@@ -599,9 +721,20 @@ public class TestRemoteEventHandler {
   public void testPipelineBaseEventTriggered() {
     MessagingJsonToFromDto jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
     List<ClientEvent> ackEventJsonList = new ArrayList<ClientEvent>();
-    MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
-        new MockBaseEventSenderReceiver(),
+    final MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testPipelineBaseEventTriggered"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(mockRemoteDataCollector,
+        eventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
         new ArrayList<ClientEvent>(),
@@ -613,9 +746,8 @@ public class TestRemoteEventHandler {
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(-1, remoteEventHandler.getDelay());
@@ -678,8 +810,21 @@ public class TestRemoteEventHandler {
     MessagingJsonToFromDto jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
     List<ClientEvent> ackEventJsonList = new ArrayList<ClientEvent>();
     MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
-        new MockSaveEventSenderReceiver(),
+    final MockSaveEventSenderReceiver eventSenderReceiver = new MockSaveEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testPipelineSaveEventTriggered"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration(),
+        dataStore
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
         new ArrayList<ClientEvent>(),
@@ -691,9 +836,8 @@ public class TestRemoteEventHandler {
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
-        dataStore,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(-1, remoteEventHandler.getDelay());
@@ -711,8 +855,20 @@ public class TestRemoteEventHandler {
     MessagingJsonToFromDto jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
     List<ClientEvent> ackEventJsonList = new ArrayList<ClientEvent>();
     MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
-        new MockBaseEventSenderReceiver(),
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testPipelineAckEventError"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
         new ArrayList<ClientEvent>(),
@@ -724,9 +880,8 @@ public class TestRemoteEventHandler {
         new HashMap<String, String>(),
         Stopwatch.createStarted(),
         -1,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     // start event in error
     mockRemoteDataCollector.errorInjection = true;
@@ -744,7 +899,20 @@ public class TestRemoteEventHandler {
   public void testPingFrequencyEvent() {
     MessagingJsonToFromDto jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
     List<ClientEvent> ackEventJsonList = new ArrayList<ClientEvent>();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(new MockRemoteDataCollector(),
+    MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testPingFrequencyEvent"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         new MockPingFrequencyAdjustmentSenderReceiver(),
         jsonToFromDto,
         ackEventJsonList,
@@ -757,9 +925,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(PING_FREQUENCY, remoteEventHandler.getDelay());
@@ -782,7 +949,19 @@ public class TestRemoteEventHandler {
     MockBaseEventSenderReceiver mockBaseEventSenderReceiver = new MockBaseEventSenderReceiver();
     Stopwatch stopwatch = Stopwatch.createUnstarted();
     stopwatch.start();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testSendingEventClientToServer"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         mockBaseEventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
@@ -795,9 +974,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         stopwatch,
         60000,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(1, mockBaseEventSenderReceiver.clientJson.size());
@@ -810,7 +988,8 @@ public class TestRemoteEventHandler {
     assertEquals("remote", pipelineStatusEventJson.getName());
     mockRemoteDataCollector.putRemotePipelines = false;
     Thread.sleep(10);
-    remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
+    remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         mockBaseEventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
@@ -823,9 +1002,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         stopwatch,
         5,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(2, mockBaseEventSenderReceiver.clientJson.size());
@@ -878,7 +1056,19 @@ public class TestRemoteEventHandler {
         sdcInfoEvent,
         null
     );
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testSendSDCInfoEvent"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         mockBaseEventSenderReceiver,
         jsonToFromDto,
         ackEventJsonList,
@@ -891,9 +1081,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     assertEquals(3, mockBaseEventSenderReceiver.clientJson.size());
@@ -932,7 +1121,20 @@ public class TestRemoteEventHandler {
     MessagingJsonToFromDto jsonToFromDto = MessagingJsonToFromDto.INSTANCE;
     List<ClientEvent> ackEventJsonList = new ArrayList<ClientEvent>();
     MockRemoteDataCollector mockRemoteDataCollector = new MockRemoteDataCollector();
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(mockRemoteDataCollector,
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration(),
+        dataStore
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         new MockSaveEventSenderReceiver(),
         jsonToFromDto,
         ackEventJsonList,
@@ -945,9 +1147,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
-        dataStore,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     remoteEventHandler.callRemoteControl();
     Mockito.verify(dataStore, Mockito.times(1)).commit(Mockito.any(OutputStream.class));
@@ -959,7 +1160,20 @@ public class TestRemoteEventHandler {
 
   @Test
   public void testAckIgnore() {
-    EventHandlerCallable remoteEventHandler = new EventHandlerCallable(Mockito.mock(RemoteDataCollector.class),
+    final RemoteDataCollector mockRemoteDataCollector = Mockito.mock(RemoteDataCollector.class);
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+    EventHandlerCallable remoteEventHandler = remoteEventHandlerTask.new EventHandlerCallable(
+        mockRemoteDataCollector,
         Mockito.mock(EventClient.class),
         MessagingJsonToFromDto.INSTANCE,
         new ArrayList<>(),
@@ -972,9 +1186,8 @@ public class TestRemoteEventHandler {
         new HashMap<>(),
         Stopwatch.createStarted(),
         -1,
-        null,
         new HashMap<>(),
-        Mockito.mock(RuntimeInfo.class)
+        mockRuntimeInfo
     );
     ServerEventJson serverEventJson = new ServerEventJson();
     serverEventJson.setRequiresAck(true);
@@ -986,5 +1199,56 @@ public class TestRemoteEventHandler {
     serverEventJson.setRequiresAck(false);
     clientEvent = remoteEventHandler.handlePipelineEvent(serverEventJson);
     Assert.assertNull(clientEvent);
+  }
+
+  @Test
+  public void testPreviewEventLocal() throws PipelineException {
+    final RemoteDataCollector mockRemoteDataCollector = Mockito.mock(RemoteDataCollector.class);
+    final String previewerId = "previewerId";
+    Mockito.when(mockRemoteDataCollector.previewPipeline(
+        Mockito.anyString(),
+        Mockito.anyString(),
+        Mockito.anyString(),
+        Mockito.anyInt(),
+        Mockito.anyInt(),
+        Mockito.anyBoolean(),
+        Mockito.anyBoolean(),
+        Mockito.anyString(),
+        Mockito.anyList(),
+        Mockito.anyLong(),
+        Mockito.anyBoolean(),
+        Mockito.anyList(),
+        Mockito.any()
+    )).thenReturn(previewerId);
+    final MockBaseEventSenderReceiver eventSenderReceiver = new MockBaseEventSenderReceiver();
+    final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
+    final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        mockRemoteDataCollector,
+        eventSenderReceiver,
+        new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
+        mockStageLibraryTask,
+        mockRuntimeInfo,
+        new Configuration()
+    );
+
+    final RemoteDataCollectorResult result = remoteEventHandlerTask.handleLocalEvent(new PipelinePreviewEvent(
+        "name",
+        "rev",
+        "user",
+        Collections.emptyList(),
+        1,
+        10,
+        false,
+        false,
+        null,
+        1000l,
+        false,
+        null
+    ), EventType.PREVIEW_PIPELINE);
+
+    assertThat(result.isError(), equalTo(false));
+    assertThat(result.getImmediateResult(), notNullValue());
+    assertThat(result.getImmediateResult(), equalTo(previewerId));
   }
 }

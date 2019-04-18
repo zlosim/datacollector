@@ -41,6 +41,7 @@ public final class TableReadContext {
   private final ResultSet rs;
   private final boolean neverEvict;
   private int numberOfBatches;
+  private long numberOfRecords;
   private final JdbcUtil jdbcUtil;
 
   public TableReadContext(
@@ -64,10 +65,10 @@ public final class TableReadContext {
     ps = connection.prepareStatement(query);
     ps.setFetchSize(fetchSize);
     setPreparedStParameters(paramValuesToSet);
-    LOGGER.info("Executing Query :{}", query);
+    LOGGER.debug("Executing Query :{}", query);
     LOGGER.debug("Parameter Types And Values {}", paramValuesToSet);
     rs = ps.executeQuery();
-    numberOfBatches = 0;
+    resetProcessingMetrics();
     this.neverEvict = neverEvict;
   }
 
@@ -129,8 +130,18 @@ public final class TableReadContext {
     return numberOfBatches;
   }
 
-  public void setNumberOfBatches(int numberOfBatches) {
-    this.numberOfBatches = numberOfBatches;
+  public long getNumberOfRecords() {
+    return numberOfRecords;
+  }
+
+  public void resetProcessingMetrics() {
+    this.numberOfBatches = 0;
+    this.numberOfRecords = 0;
+  }
+
+  public void addProcessingMetrics(int batch, long records) {
+    this.numberOfBatches += batch;
+    this.numberOfRecords += records;
   }
 
   public boolean isNeverEvict() {
@@ -148,5 +159,16 @@ public final class TableReadContext {
       resultSet = ps.getResultSet();
     }
     return resultSet;
+  }
+
+  public void closeResultSet() {
+    try {
+      if (rs != null && !rs.isClosed()) {
+        rs.close();
+      }
+    } catch (SQLException e) {
+      LOGGER.warn("Exception thrown while trying to close result set, continuing");
+    }
+
   }
 }

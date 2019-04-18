@@ -37,12 +37,12 @@ public final class JdbcRecordReaderWriterFactory {
       boolean rollbackOnError,
       boolean useMultiRowOp,
       int maxPrepStmtParameters,
-      int maxPrepStmtCache,
       int defaultOpCode,
       UnsupportedOperationAction unsupportedAction,
       DuplicateKeyAction duplicateKeyAction,
       JdbcRecordReader recordReader,
-      boolean caseSensitive
+      boolean caseSensitive,
+      List<String> customDataSqlStateCodes
   ) throws StageException {
     if (defaultOpCode == OperationType.LOAD_CODE) {
       return new JdbcLoadRecordWriter(
@@ -53,7 +53,8 @@ public final class JdbcRecordReaderWriterFactory {
           customMappings,
           duplicateKeyAction,
           recordReader,
-          caseSensitive
+          caseSensitive,
+          customDataSqlStateCodes
       );
     } else {
       return createJdbcRecordWriter(
@@ -66,12 +67,12 @@ public final class JdbcRecordReaderWriterFactory {
           rollbackOnError,
           useMultiRowOp,
           maxPrepStmtParameters,
-          maxPrepStmtCache,
           defaultOpCode,
           unsupportedAction,
           recordReader,
-          caseSensitive
-          );
+          caseSensitive,
+          customDataSqlStateCodes
+      );
     }
   }
 
@@ -86,11 +87,11 @@ public final class JdbcRecordReaderWriterFactory {
        boolean rollbackOnError,
        boolean useMultiRowOp,
        int maxPrepStmtParameters,
-       int maxPrepStmtCache,
        int defaultOpCode,
        UnsupportedOperationAction unsupportedAction,
        JdbcRecordReader recordReader,
-       boolean caseSensitive
+       boolean caseSensitive,
+       List<String> customDataSqlStateCodes
   ) throws StageException {
 
     JdbcRecordWriter recordWriter;
@@ -108,7 +109,8 @@ public final class JdbcRecordReaderWriterFactory {
           unsupportedAction,
           generatedColumnMappings,
           recordReader,
-          caseSensitive
+          caseSensitive,
+          customDataSqlStateCodes
       );
     } else {
       recordWriter = new JdbcGenericRecordWriter(
@@ -118,12 +120,12 @@ public final class JdbcRecordReaderWriterFactory {
           tableName,
           rollbackOnError,
           customMappings,
-          maxPrepStmtCache,
           defaultOpCode,
           unsupportedAction,
           generatedColumnMappings,
           recordReader,
-          caseSensitive
+          caseSensitive,
+          customDataSqlStateCodes
       );
     }
     return recordWriter;

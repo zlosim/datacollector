@@ -26,12 +26,8 @@ import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.configupgrade.PipelineConfigurationUpgrader;
 import com.streamsets.datacollector.creation.PipelineBean;
 import com.streamsets.datacollector.creation.PipelineBeanCreator;
-import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.creation.ServiceBean;
 import com.streamsets.datacollector.creation.StageBean;
-import com.streamsets.datacollector.el.JvmEL;
-import com.streamsets.datacollector.execution.runner.common.Constants;
-import com.streamsets.datacollector.runner.InterceptorCreatorContextBuilder;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.ConfigDef;
@@ -76,7 +72,6 @@ public class PipelineConfigurationValidator extends PipelineFragmentConfiguratio
     }
     canPreview &= checkIfPipelineIsEmpty();
     canPreview &= loadAndValidatePipelineConfig();
-    canPreview &= validatePipelineMemoryConfiguration();
     canPreview &= validateStageConfiguration();
     canPreview &= validatePipelineLanes();
     canPreview &= validateEventAndDataLanesDoNotCross();
@@ -252,28 +247,9 @@ public class PipelineConfigurationValidator extends PipelineFragmentConfiguratio
     return errors.isEmpty();
   }
 
-  private boolean validatePipelineMemoryConfiguration() {
-    boolean canPreview = true;
-    if (pipelineBean != null) {
-      PipelineConfigBean config = pipelineBean.getConfig();
-      if (config.memoryLimit > JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION) {
-        issues.add(
-            IssueCreator.getPipeline().create(
-                "",
-                "memoryLimit",
-                ValidationError.VALIDATION_0063,
-                config.memoryLimit,
-                JvmEL.jvmMaxMemoryMB() * Constants.MAX_HEAP_MEMORY_LIMIT_CONFIGURATION)
-        );
-        canPreview = false;
-      }
-    }
-    return canPreview;
-  }
-
   @VisibleForTesting
   boolean validateErrorStage() {
-    boolean preview = false;
+    boolean preview = true;
     StageConfiguration errorStage = pipelineConfiguration.getErrorStage();
     if (errorStage != null) {
       IssueCreator errorStageCreator = IssueCreator.getStage(errorStage.getInstanceName());

@@ -64,6 +64,13 @@ angular
       producingEventsConfig: {
         value: false
       },
+      fieldHash: {},
+      fieldParamHash: {},
+
+      onParamClick: function(configName){
+        $scope.fieldParamHash[configName] = !!!$scope.fieldParamHash[configName];
+        $scope.fieldHash[configName].value = '';
+      },
 
       /**
        * Callback function when tab is selected.
@@ -574,11 +581,21 @@ angular
       getValueChooserOptions: function(instance, definition) {
         var list = [];
         var filter = $scope.getConfig(definition.model.filteringConfig, instance);
+        var edgeOriginDataFormats = ['DELIMITED', 'JSON', 'SDC_JSON', 'TEXT', 'WHOLE_FILE', 'BINARY'];
+        var edgeDestinationDataFormats = ['JSON', 'SDC_JSON', 'TEXT', 'WHOLE_FILE', 'BINARY'];
+        var isEdgeExecutionMode = $scope.executionMode === 'EDGE';
 
         angular.forEach(definition.model.values, function(value, index) {
-
-          if(filter && filter.indexOf(value) < 0) {
+          if (filter && filter.indexOf(value) < 0) {
             return;
+          }
+
+          if (definition.name.indexOf('dataFormat') !== -1 && isEdgeExecutionMode) {
+            if (isSourceInstance($scope.detailPaneConfig) && edgeOriginDataFormats.indexOf(value) < 0) {
+              return;
+            } else if (isTargetInstance($scope.detailPaneConfig) && edgeDestinationDataFormats.indexOf(value) < 0) {
+              return;
+            }
           }
 
           var entry = {
@@ -752,6 +769,10 @@ angular
       return isStageInstance(instance) && instance.uiInfo.stageType === pipelineConstant.SOURCE_STAGE_TYPE;
     };
 
+    var isTargetInstance = function(instance) {
+      return instance && instance.uiInfo && instance.uiInfo.stageType === pipelineConstant.TARGET_STAGE_TYPE;
+    };
+
     /**
      * Update Stage Preview Data when stage selection changed.
      *
@@ -776,9 +797,9 @@ angular
                 dFieldPathsList = [];
 
               angular.forEach(inputRecords, function(record, index) {
-                var fieldPaths = [],
-                  fieldPathsType = [],
-                  dFieldPaths = [];
+                var fieldPaths = [];
+                var fieldPathsType = [];
+                var dFieldPaths = [];
 
                 pipelineService.getFieldPaths(record.value, fieldPaths, false, fieldPathsType, dFieldPaths);
 
@@ -812,6 +833,16 @@ angular
 
     var initializeGroupInformation = function(options) {
       var groupDefn = $scope.detailPaneConfigDefn ? $scope.detailPaneConfigDefn.configGroupDefinition : undefined;
+
+      // set flag for value or param (used for checkbox and lists)
+      if ($scope.detailPaneConfig.configuration) {
+        $scope.detailPaneConfig.configuration.forEach(c => {
+          $scope.fieldHash[c.name] = c;
+          if(c.value && typeof c.value === 'string' && c.value.startsWith('${')){
+            $scope.fieldParamHash[c.name] = true;
+          }
+        });
+      }
 
       if (groupDefn && groupDefn.groupNameToLabelMapList) {
         $scope.showGroups = (groupDefn.groupNameToLabelMapList.length > 0);

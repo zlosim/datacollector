@@ -26,6 +26,7 @@ import com.streamsets.datacollector.config.dto.ValidationStatus;
 import com.streamsets.datacollector.event.dto.AckEvent;
 import com.streamsets.datacollector.event.dto.AckEventStatus;
 import com.streamsets.datacollector.event.dto.EventType;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.dto.WorkerInfo;
 import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.execution.Manager;
@@ -39,6 +40,7 @@ import com.streamsets.datacollector.execution.Runner;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.restapi.bean.SourceOffsetJson;
+import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.security.GroupsInScope;
@@ -51,6 +53,7 @@ import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.LogUtil;
 import com.streamsets.datacollector.util.PipelineException;
+import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.datacollector.validation.Issues;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
 import com.streamsets.lib.security.acl.dto.Acl;
@@ -70,14 +73,17 @@ import javax.inject.Named;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 
 public class RemoteDataCollector implements DataCollector {
 
@@ -200,40 +206,56 @@ public class RemoteDataCollector implements DataCollector {
   }
 
   @Override
-  public void savePipeline(
+  public String savePipeline(
       String user,
       String name,
       String rev,
       String description,
       SourceOffset offset,
-      PipelineConfiguration pipelineConfiguration,
+      final PipelineConfiguration pipelineConfiguration,
       RuleDefinitions ruleDefinitions,
       Acl acl,
       Map<String, Object> metadata
   ) throws PipelineException {
-    // Due to some reason, if pipeline folder doesn't exist but state file exists then remove the state file.
-    if (!pipelineStore.hasPipeline(name) && pipelineStateExists(name, rev)) {
-      LOG.warn("Deleting state file for pipeline {} as pipeline is deleted", name);
-      pipelineStateStore.delete(name, rev);
+    UUID uuid = null;
+    try {
+      uuid = GroupsInScope.executeIgnoreGroups(() -> {
+        // Due to some reason, if pipeline folder doesn't exist but state file exists then remove the state file.
+        if (!pipelineStore.hasPipeline(name) && pipelineStateExists(name, rev)) {
+          LOG.warn("Deleting state file for pipeline {} as pipeline is deleted", name);
+          pipelineStateStore.delete(name, rev);
+        }
+        UUID uuidRet = pipelineStore.create(user, name, name, description, true, false, metadata).getUuid();
+        pipelineConfiguration.setUuid(uuidRet);
+        PipelineConfigurationValidator validator = new PipelineConfigurationValidator(stageLibrary,
+            name,
+            pipelineConfiguration
+        );
+        PipelineConfiguration validatedPipelineConfig = validator.validate();
+        pipelineStore.save(user, name, rev, description, validatedPipelineConfig);
+        pipelineStore.storeRules(name, rev, ruleDefinitions, false);
+        if (acl != null) { // can be null for old dpm or when DPM jobs have no acl
+          aclStoreTask.saveAcl(name, acl);
+        }
+        LOG.info("Offset for remote pipeline '{}:{}' is {}", name, rev, offset);
+        if (offset != null) {
+          OffsetFileUtil.saveSourceOffset(runtimeInfo, name, rev, offset);
+        }
+        return uuidRet;
+      });
+    } catch (Exception ex) {
+      LOG.warn(Utils.format("Error while saving pipeline: {} is {}", name, ex), ex);
+      if (ex.getCause() != null) {
+        ExceptionUtils.throwUndeclared(ex.getCause());
+      } else {
+        ExceptionUtils.throwUndeclared(ex);
+      }
+    } finally {
+      MDC.clear();
     }
-    UUID uuid = pipelineStore.create(user, name, name, description, true, false, metadata).getUuid();
-    pipelineConfiguration.setUuid(uuid);
-    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(
-        stageLibrary,
-        name,
-        pipelineConfiguration
-    );
-    pipelineConfiguration = validator.validate();
-    pipelineStore.save(user, name, rev, description, pipelineConfiguration);
-    pipelineStore.storeRules(name, rev, ruleDefinitions, false);
-    if (acl != null) { // can be null for old dpm or when DPM jobs have no acl
-      aclStoreTask.saveAcl(name, acl);
-    }
-    LOG.info("Offset for remote pipeline '{}:{}' is {}", name, rev, offset);
-    if (offset != null) {
-      OffsetFileUtil.saveSourceOffset(runtimeInfo, name, rev, offset);
-    }
+    return uuid.toString();
   }
+
 
   @Override
   public void savePipelineRules(String name, String rev, RuleDefinitions ruleDefinitions) throws PipelineException {
@@ -249,10 +271,49 @@ public class RemoteDataCollector implements DataCollector {
   }
 
   @Override
-  public void validateConfigs(String user, String name, String rev) throws PipelineException {
-    Previewer previewer = manager.createPreviewer(user, name, rev);
+  public void validateConfigs(
+      String user,
+      String name,
+      String rev,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs
+  ) throws PipelineException {
+    Previewer previewer = manager.createPreviewer(user, name, rev, interceptorConfs, p -> null);
     previewer.validateConfigs(1000L);
     validatorIdList.add(previewer.getId());
+  }
+
+  @Override
+  public String previewPipeline(
+      String user,
+      String name,
+      String rev,
+      int batches,
+      int batchSize,
+      boolean skipTargets,
+      boolean skipLifecycleEvents,
+      String stopStage,
+      List<StageOutput> stagesOverride,
+      long timeoutMillis,
+      boolean testOrigin,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+      Function<Object, Void> afterActionsFunction
+  ) throws PipelineException {
+    final Previewer previewer = manager.createPreviewer(user, name, rev, interceptorConfs, afterActionsFunction);
+    previewer.validateConfigs(10000l);
+
+    if (!EnumSet.of(PreviewStatus.VALIDATION_ERROR,  PreviewStatus.INVALID).contains(previewer.getStatus())) {
+      previewer.start(
+          batches,
+          batchSize,
+          skipTargets,
+          skipLifecycleEvents,
+          stopStage,
+          stagesOverride,
+          timeoutMillis,
+          testOrigin
+      );
+    }
+    return previewer.getId();
   }
 
   static class StopAndDeleteCallable implements Callable<AckEvent> {

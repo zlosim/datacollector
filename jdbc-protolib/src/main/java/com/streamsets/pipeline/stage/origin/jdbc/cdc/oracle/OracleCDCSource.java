@@ -191,10 +191,12 @@ public class OracleCDCSource extends BaseSource {
   public static final String STARTED_LOG_MINER_WITH_START_SCN_AND_END_SCN = "Started LogMiner with start SCN: {} and end SCN: {}";
   public static final String REDO_SELECT_QUERY = "Redo select query for selectFromLogMnrContents = {}";
   public static final String CURRENT_LATEST_SCN_IS = "Current latest SCN is: {}";
+  private static final String SESSION_WINDOW_CURRENT_MSG = "Session window is in current time. Fetch size now set to {}";
 
   public static final int LOGMINER_START_MUST_BE_CALLED = 1306;
   public static final String ROLLBACK = "rollback";
   public static final String ONE = "1";
+  public static final String READ_NULL_QUERY_FROM_ORACLE = "Read (null) query from Oracle with SCN: {}, Txn Id: {}";
   private DateTimeColumnHandler dateTimeColumnHandler;
 
 
@@ -508,6 +510,7 @@ public class OracleCDCSource extends BaseSource {
     LocalDateTime startTime = adjustStartTime(startingOffset.timestamp);
     String lastTxnId = startingOffset.txnId;
     LocalDateTime endTime = getEndTimeForStartTime(startTime);
+    boolean sessionWindowInCurrent = inSessionWindowCurrent(startTime, endTime);
     ResultSet resultSet = null;
     while (!getContext().isStopped()) {
       error = false;
@@ -528,15 +531,45 @@ public class OracleCDCSource extends BaseSource {
             selectChanges.setBigDecimal(4, lastCommitSCN);
           }
         }
-        selectChanges.setFetchSize(configBean.jdbcFetchSize);
+        selectChanges.setFetchSize(1);
         resultSet = selectChanges.executeQuery();
+        if (!sessionWindowInCurrent) {
+          // Overwrite fetch size when session window is past
+          resultSet.setFetchSize(configBean.jdbcFetchSize);
+        } else {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace(SESSION_WINDOW_CURRENT_MSG, configBean.fetchSizeLatest);
+          }
+          resultSet.setFetchSize(configBean.fetchSizeLatest);
+        }
         while (resultSet.next() && !getContext().isStopped()) {
-          query.append(resultSet.getString(5));
+          String queryFragment = resultSet.getString(5);
+          BigDecimal scnDecimal = resultSet.getBigDecimal(1);
+          String scn = scnDecimal.toPlainString();
+          String xidUsn = String.valueOf(resultSet.getLong(10));
+          String xidSlt = String.valueOf(resultSet.getString(11));
+          String xidSqn = String.valueOf(resultSet.getString(12));
+          String xid = xidUsn + "." + xidSlt + "." + xidSqn;
+          // Query Fragment is not null -> we need to process
+          // Query Fragment is null AND the query string buffered from previous rows due to CSF == 0 is null,
+          // nothing to do, go to next row
+          // Query Fragment is null, but there is previously buffered data in the query, go ahead and process.
+          if (queryFragment != null) {
+            query.append(queryFragment);
+          } else if (queryFragment == null && query.length() == 0) {
+            LOG.debug(READ_NULL_QUERY_FROM_ORACLE, scn, xid);
+            continue;
+          }
+
           // CSF is 1 if the query is incomplete, so read the next row before parsing
           // CSF being 0 means query is complete, generate the record
           if (resultSet.getInt(9) == 0) {
-            BigDecimal scnDecimal = resultSet.getBigDecimal(1);
-            String scn = scnDecimal.toPlainString();
+            if (query.length() == 0) {
+              LOG.debug(READ_NULL_QUERY_FROM_ORACLE, scn, xid);
+              continue;
+            }
+            String queryString = query.toString();
+            query.setLength(0);
             String username = resultSet.getString(2);
             short op = resultSet.getShort(3);
             String timestamp = resultSet.getString(4);
@@ -544,19 +577,14 @@ public class OracleCDCSource extends BaseSource {
             delay.getValue().put("delay", getDelay(tsDate));
             String table = resultSet.getString(6);
             BigDecimal commitSCN = resultSet.getBigDecimal(7);
-            String queryString = query.toString();
-            query.setLength(0);
             int seq = resultSet.getInt(8);
-            String xidUsn = String.valueOf(resultSet.getLong(10));
-            String xidSlt = String.valueOf(resultSet.getString(11));
-            String xidSqn = String.valueOf(resultSet.getString(12));
+
             String rsId = resultSet.getString(13);
             Object ssn = resultSet.getObject(14);
             String schema = String.valueOf(resultSet.getString(15));
             int rollback = resultSet.getInt(16);
             String rowId = resultSet.getString(17);
             SchemaAndTable schemaAndTable = new SchemaAndTable(schema, table);
-            String xid = xidUsn + "." + xidSlt + "." + xidSqn;
             TransactionIdKey key = new TransactionIdKey(xid);
             bufferedRecordsLock.lock();
             try {
@@ -729,6 +757,7 @@ public class OracleCDCSource extends BaseSource {
             startTime = adjustStartTime(endTime);
             endTime = getEndTimeForStartTime(startTime);
           }
+          sessionWindowInCurrent = inSessionWindowCurrent(startTime, endTime);
           startLogMinerUsingGivenDates(
               startTime.format(dateTimeColumnHandler.dateFormatter),
               endTime.format(dateTimeColumnHandler.dateFormatter)
@@ -742,6 +771,12 @@ public class OracleCDCSource extends BaseSource {
         }
       }
     }
+  }
+
+  private boolean inSessionWindowCurrent(LocalDateTime startTime, LocalDateTime endTime) {
+    LocalDateTime currentTime = nowAtDBTz();
+    return (currentTime.isAfter(startTime) && currentTime.isBefore(endTime))
+        || currentTime.isEqual(startTime) || currentTime.isEqual(endTime);
   }
 
   private void resetConnectionsQuietly() {
@@ -828,7 +863,9 @@ public class OracleCDCSource extends BaseSource {
         try {
           createdField = objectToField(table, columnName, column.getValue());
         } catch (UnsupportedFieldTypeException ex) {
-          LOG.error("Unsupported field type exception", ex);
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Unsupported field type exception", ex);
+          }
           if (configBean.sendUnsupportedFields) {
             createdField = Field.create(column.getValue());
           }
@@ -956,7 +993,7 @@ public class OracleCDCSource extends BaseSource {
           }
         }
       } catch (ExecutionException e) {
-        LOG.error("{}:{}", JDBC_405.getMessage(), e.getMessage(), e);
+        LOG.error("{}:{}", e.getMessage(), e);
         final Throwable cause = e.getCause();
         if (cause instanceof UnparseableSQLException) {
           unparseable.offer(recordFuture.sql);
@@ -1167,7 +1204,7 @@ public class OracleCDCSource extends BaseSource {
       );
     }
     zoneId = ZoneId.of(configBean.dbTimeZone);
-    dateTimeColumnHandler = new DateTimeColumnHandler(zoneId);
+    dateTimeColumnHandler = new DateTimeColumnHandler(zoneId, configBean.convertTimestampToString);
     String commitScnField;
     BigDecimal scn = null;
     try {

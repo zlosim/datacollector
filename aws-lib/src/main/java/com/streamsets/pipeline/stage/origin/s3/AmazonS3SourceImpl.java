@@ -15,33 +15,41 @@
  */
 package com.streamsets.pipeline.stage.origin.s3;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements AmazonS3Source {
-  private volatile Map<Integer, S3Offset> offsetsMap;
-  private volatile Queue<S3Offset> orphanThreads;
-  private volatile S3Offset latestOffset = new S3Offset(null, S3Constants.ZERO, null, S3Constants.ZERO);
+  volatile Map<Integer, S3Offset> offsetsMap;
+  volatile Queue<S3Offset> orphanThreads;
+  private AtomicBoolean noMoreDataEventSent;
+
+  private AtomicLong noMoreDataRecordCount;
+  private AtomicLong noMoreDataErrorCount;
+  private AtomicLong noMoreDataFileCount;
 
   private PushSource.Context context;
 
   AmazonS3SourceImpl(S3ConfigBean s3ConfigBean) {
     super(s3ConfigBean);
-    offsetsMap = Collections.synchronizedMap(new LinkedHashMap<>());
+    offsetsMap = new ConcurrentHashMap<>();
     orphanThreads = new LinkedList<>();
+    noMoreDataEventSent = new AtomicBoolean(false);
+    noMoreDataRecordCount = new AtomicLong();
+    noMoreDataErrorCount = new AtomicLong();
+    noMoreDataFileCount = new AtomicLong();
   }
 
   @Override
@@ -51,15 +59,18 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
     int threadCount = 0;
 
     if (lastSourceOffset.containsKey(Source.POLL_SOURCE_OFFSET_KEY)) {
-      //This code will be executed only the first time after moving from singlethread to multithread
+      // This code will be executed only the first time after moving from singlethread to multithread
       offsetsMap.put(threadCount, S3Offset.fromString(lastSourceOffset.get(Source.POLL_SOURCE_OFFSET_KEY)));
+      // Properly finish the upgrade by removing the original POLL_SOURCE key out
+      context.commitOffset(Source.POLL_SOURCE_OFFSET_KEY, null);
     } else {
       createInitialOffsetsMap(lastSourceOffset);
     }
     return offsetsMap;
   }
 
-  private void createInitialOffsetsMap(Map<String, String> lastSourceOffset) throws StageException {
+  @VisibleForTesting
+  void createInitialOffsetsMap(Map<String, String> lastSourceOffset) throws StageException {
     List<S3Offset> unorderedListOfOffsets = new ArrayList<>();
     for (String offset : lastSourceOffset.values()) {
       unorderedListOfOffsets.add(S3Offset.fromString(offset));
@@ -78,78 +89,51 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
         offsetsMap.put(threadCount, s3Offset);
         orphanThreads.add(s3Offset);
       }
-      latestOffset = s3Offset;
       threadCount++;
     }
   }
 
-  private List<S3Offset> orderOffsets(List<S3Offset> unorderedListOfOffsets) {
+  @VisibleForTesting
+  List<S3Offset> orderOffsets(List<S3Offset> offsetsList) {
     ObjectOrdering objectOrdering = s3ConfigBean.s3FileConfig.objectOrdering;
     switch (objectOrdering) {
       case TIMESTAMP:
-        Collections.sort(unorderedListOfOffsets, new TimeStampComparator());
+        offsetsList.sort(Comparator.comparing(S3Offset::getTimestamp));
         break;
       case LEXICOGRAPHICAL:
-        Collections.sort(unorderedListOfOffsets, new LexicographicalComparator());
+        offsetsList.sort(Comparator.comparing(S3Offset::getKey));
         break;
       default:
         throw new IllegalArgumentException("Unknown ordering: " + objectOrdering.getLabel());
     }
-    return unorderedListOfOffsets;
-  }
-
-  public class TimeStampComparator implements Comparator<S3Offset> {
-    @Override
-    public int compare(S3Offset o1, S3Offset o2) {
-      return o1.getTimestamp().compareTo(o2.getTimestamp());
-    }
-  }
-
-  public class LexicographicalComparator implements Comparator<S3Offset> {
-    @Override
-    public int compare(S3Offset o1, S3Offset o2) {
-      return o1.getKey().compareTo(o2.getKey());
-    }
+    return offsetsList;
   }
 
   @Override
-  public void updateOffset(Integer key, S3Offset value) {
-    if (value.getKey() != null) {
+  public void updateOffset(Integer runnerId, S3Offset s3Offset) {
+    if (s3Offset.getKey() != null) {
 
-      if (!isKeyAlreadyInMap(value.getKey())) {
-        offsetsMap.put(key, value);
-        context.commitOffset(String.valueOf(key), value.toString());
-        updateLatestOffset(value);
+      if (!isKeyAlreadyInMap(s3Offset.getKey())) {
+        offsetsMap.put(runnerId, s3Offset);
+        context.commitOffset(String.valueOf(runnerId), s3Offset.toString());
         return;
       }
 
-      S3Offset offset = getOffsetFromGivenKey(value.getKey());
+      S3Offset offset = getOffsetFromGivenKey(s3Offset.getKey());
       if (!offset.getOffset().equals(S3Constants.MINUS_ONE)) {
-        if (value.getOffset().equals(S3Constants.MINUS_ONE)) {
-          offsetsMap.put(key, value);
-          context.commitOffset(String.valueOf(key), value.toString());
-          updateLatestOffset(value);
-        } else if (Integer.valueOf(value.getOffset()) > Integer.valueOf(offset.getOffset())) {
-          offsetsMap.put(key, value);
-          context.commitOffset(String.valueOf(key), value.toString());
-          updateLatestOffset(value);
+        if (s3Offset.getOffset().equals(S3Constants.MINUS_ONE)) {
+          offsetsMap.put(runnerId, s3Offset);
+          context.commitOffset(String.valueOf(runnerId), s3Offset.toString());
+        } else if (Integer.valueOf(s3Offset.getOffset()) > Integer.valueOf(offset.getOffset())) {
+          offsetsMap.put(runnerId, s3Offset);
+          context.commitOffset(String.valueOf(runnerId), s3Offset.toString());
         }
       }
     }
   }
 
-  private void updateLatestOffset(S3Offset offset) {
-    if (latestOffset.getKey().equals(offset.getKey()) && !latestOffset.getOffset().equals(offset.getOffset())) {
-      latestOffset = offset;
-    }
-  }
-
-  @Override
-  public void addNewLatestOffset(S3Offset offset) {
-    latestOffset = offset;
-  }
-
-  private S3Offset getOffsetFromGivenKey(String key) {
+  @VisibleForTesting
+  S3Offset getOffsetFromGivenKey(String key) {
     for (S3Offset offset : offsetsMap.values()) {
       if (offset.getKey() != null && offset.getKey().equals(key)) {
         return offset;
@@ -158,7 +142,8 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
     return null;
   }
 
-  private boolean isKeyAlreadyInMap(String key) {
+  @VisibleForTesting
+  boolean isKeyAlreadyInMap(String key) {
     boolean exists = true;
     if (getOffsetFromGivenKey(key) == null) {
       exists = false;
@@ -167,25 +152,80 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
   }
 
   @Override
-  public S3Offset getOffset(Integer key) {
-    if (offsetsMap.containsKey(key) && offsetsMap.get(key).getOffset().equals(S3Constants.MINUS_ONE)) {
-      //If current record is finished and we prefer to get one of the orphans
-      if (!orphanThreads.isEmpty()) {
-        offsetsMap.remove(key);
-        S3Offset value = orphanThreads.poll();
-        value = value != null ? value : new S3Offset(null, S3Constants.ZERO, null, S3Constants.ZERO);
-        offsetsMap.put(key, value);
-      }
-    } else if (offsetsMap.containsKey(key)) {
-      return offsetsMap.get(key);
+  public S3Offset getOffset(Integer runnerId) {
+    // If the current value for that runnerId is MINUS_ONE and we have any orphanThread we will get the next value
+    // from there, if not, we will create a new empty offset
+    S3Offset offset;
+    S3Offset currentOffset = offsetsMap.get(runnerId);
+    if (currentOffset != null && currentOffset.getOffset().equals(S3Constants.MINUS_ONE) && !orphanThreads.isEmpty()) {
+      offset = orphanThreads.poll();
+      offset = offset != null ? offset : new S3Offset(S3Constants.EMPTY,
+          S3Constants.ZERO,
+          S3Constants.EMPTY,
+          S3Constants.ZERO
+      );
+      offsetsMap.put(runnerId, offset);
     } else {
-      offsetsMap.put(key, new S3Offset(null, S3Constants.ZERO, null, S3Constants.ZERO));
+      offset = offsetsMap.computeIfAbsent(
+          runnerId,
+          k -> new S3Offset(S3Constants.EMPTY, S3Constants.ZERO, S3Constants.EMPTY, S3Constants.ZERO)
+      );
     }
-    return offsetsMap.get(key);
+    return offset;
+  }
+  @Override
+  public S3Offset getLatestOffset() {
+    List<S3Offset> orderedOffsets = orderOffsets(new ArrayList<>(offsetsMap.values()));
+    return orderedOffsets.get(orderedOffsets.size() - 1);
   }
 
   @Override
-  public S3Offset getLatestOffset() {
-    return latestOffset;
+  public long incrementNoMoreDataRecordCount() {
+    return noMoreDataRecordCount.incrementAndGet();
+  }
+
+  @Override
+  public long incrementNoMoreDataErrorCount() {
+    return noMoreDataErrorCount.incrementAndGet();
+  }
+
+  @Override
+  public long incrementNoMoreDataFileCount() {
+    return noMoreDataFileCount.incrementAndGet();
+  }
+
+  @Override
+  public boolean sendNoMoreDataEvent(BatchContext batchContext) {
+    boolean eventSent = false;
+    if (allFilesAreFinished() && !noMoreDataEventSent.getAndSet(true)) {
+      S3Events.NO_MORE_DATA.create(context, batchContext)
+                           .with("record-count", noMoreDataRecordCount.get())
+                           .with("error-count", noMoreDataErrorCount.get())
+                           .with("file-count", noMoreDataFileCount.get())
+                           .createAndSend();
+      noMoreDataRecordCount.set(0);
+      noMoreDataErrorCount.set(0);
+      noMoreDataFileCount.set(0);
+      eventSent = true;
+    }
+    return eventSent;
+  }
+
+  @Override
+  public void restartNoMoreDataEvent() {
+    noMoreDataEventSent.set(false);
+  }
+
+
+  @VisibleForTesting
+  boolean allFilesAreFinished() {
+    boolean filesFinished = true;
+    for (S3Offset s3Offset : offsetsMap.values()) {
+      filesFinished = s3Offset.getOffset().equals(S3Constants.MINUS_ONE);
+      if (!filesFinished) {
+        break;
+      }
+    }
+    return filesFinished;
   }
 }

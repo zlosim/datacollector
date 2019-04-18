@@ -29,8 +29,6 @@ import com.streamsets.pipeline.stage.origin.httpserver.PushHttpReceiver;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 import com.streamsets.pipeline.stage.util.http.HttpStageUtil;
 import org.apache.commons.collections.CollectionUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -45,7 +43,6 @@ import java.util.Set;
 
 public class RestServiceReceiver extends PushHttpReceiver {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RestServiceReceiver.class);
   public final static String STATUS_CODE_RECORD_HEADER_ATTR_NAME = "responseStatusCode";
   public final static String RAW_DATA_RECORD_HEADER_ATTR_NAME = "rawPayloadRecord";
   final static String EMPTY_PAYLOAD_RECORD_HEADER_ATTR_NAME = "emptyPayloadRecord";
@@ -123,20 +120,31 @@ public class RestServiceReceiver extends PushHttpReceiver {
       responseStatusCode = 207;
     }
 
-    Record responseEnvelopeRecord = HttpStageUtil.createEnvelopeRecord(
-        getContext(),
-        getParserFactory(),
-        successRecords,
-        errorRecords,
-        responseStatusCode,
-        errorMessage
-    );
+    List<Record> responseRecords = new ArrayList<>();
+
+    if (responseConfig.sendRawResponse) {
+      responseRecords.addAll(successRecords);
+      responseRecords.addAll(errorRecords);
+    } else {
+      Record responseEnvelopeRecord = HttpStageUtil.createEnvelopeRecord(
+          getContext(),
+          getParserFactory(),
+          successRecords,
+          errorRecords,
+          responseStatusCode,
+          errorMessage,
+          responseConfig.dataFormat
+      );
+      responseRecords.add(responseEnvelopeRecord);
+    }
+
     resp.setStatus(responseStatusCode);
     resp.setContentType(HttpStageUtil.getContentType(responseConfig.dataFormat));
-
     try (DataGenerator dataGenerator = getGeneratorFactory().getGenerator(resp.getOutputStream())) {
-      dataGenerator.write(responseEnvelopeRecord);
-      dataGenerator.flush();
+      for (Record record : responseRecords) {
+        dataGenerator.write(record);
+        dataGenerator.flush();
+      }
     } catch (DataGeneratorException e) {
       throw new IOException(e);
     }

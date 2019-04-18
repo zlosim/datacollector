@@ -91,6 +91,7 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
   private SQLException firstSqlException = null;
 
   private final RateLimiter queryRateLimiter;
+  private boolean isReconnect;
 
   protected final JdbcUtil jdbcUtil;
 
@@ -115,6 +116,34 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
       CacheLoader<TableRuntimeContext, TableReadContext> tableCacheLoader,
       RateLimiter queryRateLimiter
   ) {
+    this(
+        context,
+        threadNumber,
+        batchSize,
+        offsets,
+        tableProvider,
+        connectionManager,
+        tableJdbcConfigBean,
+        commonSourceConfigBean,
+        tableCacheLoader,
+        queryRateLimiter,
+        false
+    );
+  }
+
+  public JdbcBaseRunnable(
+      PushSource.Context context,
+      int threadNumber,
+      int batchSize,
+      Map<String, String> offsets,
+      MultithreadedTableProvider tableProvider,
+      ConnectionManager connectionManager,
+      TableJdbcConfigBean tableJdbcConfigBean,
+      CommonSourceConfigBean commonSourceConfigBean,
+      CacheLoader<TableRuntimeContext, TableReadContext> tableCacheLoader,
+      RateLimiter queryRateLimiter,
+      boolean isReconnect
+  ) {
     this.jdbcUtil = UtilsProvider.getJdbcUtil();
     this.context = context;
     this.threadNumber = threadNumber;
@@ -130,6 +159,7 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
     this.errorRecordHandler = new DefaultErrorRecordHandler(context, (ToErrorContext) context);
     this.numSQLErrors = 0;
     this.firstSqlException = null;
+    this.isReconnect = isReconnect;
 
     // Metrics
     this.gaugeMap = context.createGauge(TABLE_METRICS + threadNumber).getValue();
@@ -173,7 +203,8 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
           offsets,
           tableJdbcConfigBean.fetchSize,
           tableJdbcConfigBean.quoteChar.getQuoteCharacter(),
-          tableJdbcELEvalContext
+          tableJdbcELEvalContext,
+          isReconnect
       ));
     }
   }
@@ -269,14 +300,17 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
           );
 
           if (tableFinished.get()) {
-            TableJdbcEvents.createTableFinishedEvent(context, tableRuntimeContext);
+            TableJdbcEvents.createTableFinishedEvent(context, batchContext, tableRuntimeContext);
             eventCount++;
           }
           if (schemaFinished.get()) {
-            TableJdbcEvents.createSchemaFinishedEvent(context, tableRuntimeContext, schemaFinishedTables);
+            TableJdbcEvents.createSchemaFinishedEvent(context, batchContext, tableRuntimeContext, schemaFinishedTables);
             eventCount++;
           }
         } finally {
+          if (resultSetEndReached) {
+            tableReadContext.closeResultSet();
+          }
           handlePostBatchAsNeeded(resultSetEndReached, recordCount, eventCount, batchContext);
         }
       } catch (SQLException | ExecutionException | StageException | InterruptedException e) {
@@ -352,16 +386,22 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
       BatchContext batchContext
   ) {
     AtomicBoolean shouldEvict = new AtomicBoolean(resultSetEndReached);
+    // If we read at least one record, it's safe to drop the starting offsets, otherwise they have to re-used
+    if(recordCount > 0) {
+      tableRuntimeContext.getSourceTableContext().clearStartOffset();
+    }
+
     //Only process batch if there are records or events
     if (recordCount > 0 || eventCount > 0) {
       TableReadContext tableReadContext = tableReadContextCache.getIfPresent(tableRuntimeContext);
       Optional.ofNullable(tableReadContext)
           .ifPresent(readContext -> {
-            readContext.setNumberOfBatches(readContext.getNumberOfBatches() + 1);
+            readContext.addProcessingMetrics(1, recordCount);
             LOG.debug(
-                "Table {} read {} number of batches from the fetched result set",
+                "Table {} read batches={} and records={}",
                 tableRuntimeContext.getQualifiedName(),
-                readContext.getNumberOfBatches()
+                readContext.getNumberOfBatches(),
+                readContext.getNumberOfRecords()
             );
             calculateEvictTableFlag(shouldEvict, tableReadContext);
           });
@@ -490,6 +530,8 @@ public abstract class JdbcBaseRunnable implements Runnable, JdbcRunnable {
     }
   }
 
-
+  protected DatabaseVendor getVendor() {
+    return connectionManager.getVendor();
+  }
 
 }

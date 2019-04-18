@@ -60,7 +60,7 @@ public class TestFieldEncryptProcessor {
 
   @Test
   public void testInit() throws Exception {
-    FieldEncryptConfig conf = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig conf = new ProcessorFieldEncryptConfig();
     conf.mode = EncryptionMode.ENCRYPT;
     conf.cipher = CryptoAlgorithm.ALG_AES_256_GCM_IV12_TAG16_HKDF_SHA384_ECDSA_P384;
     conf.fieldPaths = ImmutableList.of("/message");
@@ -81,7 +81,7 @@ public class TestFieldEncryptProcessor {
 
   @Test
   public void testWrongInputType() throws Exception {
-    FieldEncryptConfig decryptConfig = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig decryptConfig = new ProcessorFieldEncryptConfig();
     decryptConfig.mode = EncryptionMode.DECRYPT;
     decryptConfig.cipher = CryptoAlgorithm.ALG_AES_256_GCM_IV12_TAG16_HKDF_SHA384_ECDSA_P384;
     decryptConfig.fieldPaths = ImmutableList.of("/");
@@ -111,7 +111,7 @@ public class TestFieldEncryptProcessor {
 
   @Test
   public void testOutOfRangeConfigValue() throws Exception {
-    FieldEncryptConfig config = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig config = new ProcessorFieldEncryptConfig();
     config.mode = EncryptionMode.ENCRYPT;
     config.cipher = CryptoAlgorithm.ALG_AES_256_GCM_IV12_TAG16_HKDF_SHA384_ECDSA_P384;
     config.fieldPaths = ImmutableList.of("/");
@@ -160,7 +160,7 @@ public class TestFieldEncryptProcessor {
 
   @Test
   public void testNonCacheableCipher() throws Exception {
-    FieldEncryptConfig config = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig config = new ProcessorFieldEncryptConfig();
     config.mode = EncryptionMode.ENCRYPT;
     config.cipher = CryptoAlgorithm.ALG_AES_128_GCM_IV12_TAG16_NO_KDF;
     config.fieldPaths = ImmutableList.of("/");
@@ -190,7 +190,7 @@ public class TestFieldEncryptProcessor {
     final long longValue = 1234L;
     final boolean boolValue = true;
 
-    FieldEncryptConfig encryptConfig = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig encryptConfig = new ProcessorFieldEncryptConfig();
     encryptConfig.mode = EncryptionMode.ENCRYPT;
     encryptConfig.cipher = CryptoAlgorithm.ALG_AES_256_GCM_IV12_TAG16_HKDF_SHA384_ECDSA_P384;
     encryptConfig.fieldPaths = ImmutableList.of("/message", "/long", "/bool", "/nonExistentField", "/nullValuedField");
@@ -199,7 +199,7 @@ public class TestFieldEncryptProcessor {
     encryptConfig.context = aad;
     encryptConfig.maxBytesPerKey = String.valueOf(Long.MAX_VALUE);
 
-    FieldEncryptConfig decryptConfig = new FieldEncryptConfig();
+    ProcessorFieldEncryptConfig decryptConfig = new ProcessorFieldEncryptConfig();
     decryptConfig.mode = EncryptionMode.DECRYPT;
     decryptConfig.cipher = CryptoAlgorithm.ALG_AES_256_GCM_IV12_TAG16_HKDF_SHA384_ECDSA_P384;
     decryptConfig.fieldPaths = ImmutableList.of("/message", "/long", "/bool");

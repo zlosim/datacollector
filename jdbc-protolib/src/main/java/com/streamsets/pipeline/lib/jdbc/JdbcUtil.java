@@ -19,6 +19,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.streamsets.pipeline.api.Batch;
@@ -35,6 +36,7 @@ import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.event.CommonEvents;
 import com.streamsets.pipeline.lib.jdbc.multithread.ConnectionManager;
+import com.streamsets.pipeline.lib.jdbc.multithread.DatabaseVendor;
 import com.streamsets.pipeline.lib.jdbc.multithread.TableContextUtil;
 import com.streamsets.pipeline.lib.operation.OperationType;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
@@ -106,6 +108,13 @@ public class JdbcUtil {
   private static final String PK_TABLE_NAME = "PKTABLE_NAME";
 
   public static final String TABLE_NAME = "tableNameTemplate";
+  public static final String SCHEMA_NAME = "schema";
+
+  /**
+   * List of RDBMs that do not differentiate between databases and schemas.
+   * Use lower-case for any new value.
+   */
+  private static final String[] RDBMS_WITHOUT_SCHEMAS = {"mysql", "mariadb", "memsql", "teradata"};
 
   /**
    * Parameterized SQL statements to the database.
@@ -160,6 +169,13 @@ public class JdbcUtil {
   );
 
   /**
+   * Oracle specific SQL States: https://docs.oracle.com/cd/E15817_01/appdev.111/b31228/appd.htm
+   */
+  private static final Set<String> ORACLE_DATA_SQLSTATES = ImmutableSet.of(
+    "72000"
+  );
+
+  /**
    * MySQL does not use standard SQL States for some errors
    * handle those as a special case. See MySQL doc:
    * Server Error Codes and Messages
@@ -175,11 +191,15 @@ public class JdbcUtil {
     return METADATA_TABLE_VIEW_TYPE;
   }
 
-  public boolean isDataError(String connectionString, SQLException ex) {
+  public boolean isDataError(List<String> customDataSqlCodes, String connectionString, SQLException ex) {
     String sqlState = Strings.nullToEmpty(ex.getSQLState());
     String errorCode = String.valueOf(ex.getErrorCode());
-    if (sqlState.equals(MYSQL_GENERAL_ERROR) && connectionString.contains(":mysql")) {
+    if(customDataSqlCodes.contains(sqlState)) {
+      return true;
+    } else if (sqlState.equals(MYSQL_GENERAL_ERROR) && connectionString.contains(":mysql")) {
       return MYSQL_DATA_ERROR_ERROR_CODES.containsKey(errorCode);
+    } else if (connectionString.contains(":oracle:") && ORACLE_DATA_SQLSTATES.contains(sqlState)) {
+      return true;
     } else if (sqlState.length() >= 2 && STANDARD_DATA_ERROR_SQLSTATES.containsKey(sqlState.substring(0, 2))) {
       return true;
     }
@@ -217,6 +237,33 @@ public class JdbcUtil {
   }
 
   /**
+   * Wrapper for {@link Connection#getCatalog()} to solve problems with RDBMs for which catalog and schema are the same
+   * thing. For these RDBMs, it returns the schema name when it is not-null and not-empty; otherwise, it returns the
+   * value of java.sql.Connection.getCatalog(). For other RDBMs, it returns always the value of
+   * java.sql.Connection.getCatalog().
+   *
+   * @param connection An open JDBC connection
+   * @param schema The schema name we want to use
+   * @return The current catalog or the schema name passed as argument
+   * @throws SQLException
+   */
+  private String getCatalog(Connection connection, String schema) throws SQLException {
+    if (Strings.isNullOrEmpty(schema)) {
+      return connection.getCatalog();
+    }
+
+    String name = connection.getMetaData().getDatabaseProductName().toLowerCase();
+
+    for (String d : RDBMS_WITHOUT_SCHEMAS) {
+      if (name.contains(d)) {
+        return schema;
+      }
+    }
+
+    return connection.getCatalog();
+  }
+
+  /**
    * Wrapper for {@link java.sql.DatabaseMetaData#getColumns(String, String, String, String)} that detects
    * the format of the supplied tableName.
    *
@@ -228,7 +275,8 @@ public class JdbcUtil {
    */
   public ResultSet getColumnMetadata(Connection connection, String schema, String tableName) throws SQLException {
     DatabaseMetaData metadata = connection.getMetaData();
-    return metadata.getColumns(connection.getCatalog(), schema, tableName, null); // Get all columns for this table
+    // Get all columns for this table
+    return metadata.getColumns(getCatalog(connection, schema), schema, tableName, null);
   }
 
   /**
@@ -247,7 +295,7 @@ public class JdbcUtil {
       String tableName
   ) throws SQLException {
     return connection.getMetaData().getTables(
-        connection.getCatalog(),
+        getCatalog(connection, schema),
         schema,
         tableName,
         METADATA_TABLE_VIEW_TYPE
@@ -266,7 +314,7 @@ public class JdbcUtil {
    */
   public ResultSet getTableMetadata(Connection connection, String schema, String tableName) throws SQLException {
     DatabaseMetaData metadata = connection.getMetaData();
-    return metadata.getTables(connection.getCatalog(), schema, tableName, METADATA_TABLE_TYPE);
+    return metadata.getTables(getCatalog(connection, schema), schema, tableName, METADATA_TABLE_TYPE);
   }
 
   /**
@@ -282,7 +330,7 @@ public class JdbcUtil {
     String table = tableName;
     DatabaseMetaData metadata = connection.getMetaData();
     List<String> keys = new ArrayList<>();
-    try (ResultSet result = metadata.getPrimaryKeys(connection.getCatalog(), schema, table)) {
+    try (ResultSet result = metadata.getPrimaryKeys(getCatalog(connection, schema), schema, table)) {
       while (result.next()) {
         keys.add(result.getString(COLUMN_NAME));
       }
@@ -360,7 +408,7 @@ public class JdbcUtil {
   public Set<String> getReferredTables(Connection connection, String schema, String tableName) throws SQLException {
     DatabaseMetaData metadata = connection.getMetaData();
 
-    ResultSet result = metadata.getImportedKeys(connection.getCatalog(), schema, tableName);
+    ResultSet result = metadata.getImportedKeys(getCatalog(connection, schema), schema, tableName);
     Set<String> referredTables = new HashSet<>();
     while (result.next()) {
       referredTables.add(result.getString(PK_TABLE_NAME));
@@ -471,7 +519,8 @@ public class JdbcUtil {
       maxBlobSize,
       DataType.USE_COLUMN_TYPE,
       unknownTypeAction,
-      false
+      false,
+      DatabaseVendor.UNKNOWN
     );
   }
 
@@ -483,13 +532,39 @@ public class JdbcUtil {
       int maxBlobSize,
       DataType userSpecifiedType,
       UnknownTypeAction unknownTypeAction,
-      boolean timestampToString
+      boolean timestampToString,
+      DatabaseVendor vendor
   ) throws SQLException, IOException, StageException {
       Field field;
       if (userSpecifiedType != DataType.USE_COLUMN_TYPE) {
         // If user specifies the data type, overwrite the column type returned by database.
         field = Field.create(Field.Type.valueOf(userSpecifiedType.getLabel()), rs.getObject(columnIndex));
       } else {
+        // Firstly resolve some vendor specific types - we are careful in case that someone will be clashing
+        if(vendor == DatabaseVendor.ORACLE) {
+          switch (md.getColumnType(columnIndex)) {
+            case 100: // BINARY_FLOAT
+              return Field.create(Field.Type.FLOAT, rs.getFloat(columnIndex));
+            case 101: // BINARY_DOUBLE
+              return Field.create(Field.Type.DOUBLE, rs.getDouble(columnIndex));
+            case -101: // TIMESTAMP WITH TIMEZONE
+            case -102: // TIMESTAMP WITH LOCAL TIMEZONE
+              OffsetDateTime offsetDateTime = rs.getObject(columnIndex, OffsetDateTime.class);
+              if (offsetDateTime == null) {
+                return timestampToString ?
+                    Field.create(Field.Type.STRING, null) :
+                    Field.create(Field.Type.ZONED_DATETIME, null);
+              }
+              if (timestampToString) {
+                return Field.create(Field.Type.STRING, offsetDateTime.toZonedDateTime().toString());
+              }
+              // Zoned Datetime can handle high precision
+              return Field.create(Field.Type.ZONED_DATETIME, offsetDateTime.toZonedDateTime());
+            case Types.SQLXML:
+              return Field.create(Field.Type.STRING, rs.getSQLXML(columnIndex).getString());
+          }
+        }
+
         // All types as of JDBC 2.0 are here:
         // https://docs.oracle.com/javase/8/docs/api/constant-values.html#java.sql.Types.ARRAY
         // Good source of recommended mappings is here:
@@ -553,15 +628,12 @@ public class JdbcUtil {
             break;
           case Types.TIMESTAMP:
             final Timestamp timestamp = rs.getTimestamp(columnIndex);
-            if(timestampToString) {
+            if (timestampToString) {
               field = Field.create(Field.Type.STRING, timestamp == null ? null : timestamp.toString());
             } else {
               field = Field.create(Field.Type.DATETIME, timestamp);
               if (timestamp != null) {
-                final long actualNanos = timestamp.getNanos() % NANOS_TO_MILLIS_ADJUSTMENT;
-                if (actualNanos > 0) {
-                  field.setAttribute(FIELD_ATTRIBUTE_NANOSECONDS, String.valueOf(actualNanos));
-                }
+                setNanosecondsinAttribute(timestamp.getNanos(), field);
               }
             }
             break;
@@ -608,6 +680,13 @@ public class JdbcUtil {
       return field;
   }
 
+  public static void setNanosecondsinAttribute(int nanoseconds, Field field) {
+    final long actualNanos = nanoseconds % NANOS_TO_MILLIS_ADJUSTMENT;
+    if (actualNanos > 0) {
+      field.setAttribute(FIELD_ATTRIBUTE_NANOSECONDS, String.valueOf(actualNanos));
+    }
+  }
+
   public LinkedHashMap<String, Field> resultSetToFields(
       ResultSet rs,
       int maxClobSize,
@@ -624,7 +703,8 @@ public class JdbcUtil {
         errorRecordHandler,
         unknownTypeAction,
         null,
-        false
+        false,
+        DatabaseVendor.UNKNOWN
     );
   }
 
@@ -632,7 +712,8 @@ public class JdbcUtil {
       ResultSet rs,
       CommonSourceConfigBean commonSourceBean,
       ErrorRecordHandler errorRecordHandler,
-      UnknownTypeAction unknownTypeAction
+      UnknownTypeAction unknownTypeAction,
+      DatabaseVendor vendor
   ) throws SQLException, StageException {
     return resultSetToFields(
         rs,
@@ -642,7 +723,8 @@ public class JdbcUtil {
         errorRecordHandler,
         unknownTypeAction,
         null,
-        commonSourceBean.convertTimestampToString
+        commonSourceBean.convertTimestampToString,
+        vendor
     );
   }
 
@@ -651,7 +733,8 @@ public class JdbcUtil {
       CommonSourceConfigBean commonSourceBean,
       ErrorRecordHandler errorRecordHandler,
       UnknownTypeAction unknownTypeAction,
-      Set<String> recordHeader
+      Set<String> recordHeader,
+      DatabaseVendor vendor
   ) throws SQLException, StageException {
     return resultSetToFields(
         rs,
@@ -661,7 +744,8 @@ public class JdbcUtil {
         errorRecordHandler,
         unknownTypeAction,
         recordHeader,
-        commonSourceBean.convertTimestampToString
+        commonSourceBean.convertTimestampToString,
+        vendor
     );
   }
 
@@ -673,7 +757,8 @@ public class JdbcUtil {
       ErrorRecordHandler errorRecordHandler,
       UnknownTypeAction unknownTypeAction,
       Set<String> recordHeader,
-      boolean timestampToString
+      boolean timestampToString,
+      DatabaseVendor vendor
   ) throws SQLException, StageException {
     ResultSetMetaData md = rs.getMetaData();
     LinkedHashMap<String, Field> fields = new LinkedHashMap<>(md.getColumnCount());
@@ -690,7 +775,8 @@ public class JdbcUtil {
               maxBlobSize,
               dataType == null ? DataType.USE_COLUMN_TYPE : dataType,
               unknownTypeAction,
-              timestampToString
+              timestampToString,
+              vendor
           );
           fields.put(md.getColumnLabel(i), field);
         }
@@ -752,7 +838,8 @@ public class JdbcUtil {
   }
 
   public HikariDataSource createDataSourceForWrite(
-      HikariPoolConfigBean hikariConfigBean, String schema,
+      HikariPoolConfigBean hikariConfigBean,
+      String schemaNameTemplate,
       String tableNameTemplate,
       boolean caseSensitive,
       List<Stage.ConfigIssue> issues,
@@ -761,16 +848,16 @@ public class JdbcUtil {
   ) throws SQLException, StageException {
     HikariDataSource dataSource = new HikariDataSource(createDataSourceConfig(hikariConfigBean, false, false));
 
-    // Can only validate schema if the user specified a single table.
-    if (tableNameTemplate != null && !tableNameTemplate.contains(EL_PREFIX)) {
+    // Can only validate schema+table configuration when the user specified plain constant values
+    if (isPlainString(schemaNameTemplate) && isPlainString(tableNameTemplate)) {
       try (
         Connection connection = dataSource.getConnection();
-        ResultSet res = getTableMetadata(connection, schema, tableNameTemplate);
+        ResultSet res = getTableMetadata(connection, schemaNameTemplate, tableNameTemplate);
       ) {
         if (!res.next()) {
           issues.add(context.createConfigIssue(Groups.JDBC.name(), TABLE_NAME, JdbcErrors.JDBC_16, tableNameTemplate));
         } else {
-          try(ResultSet columns = getColumnMetadata(connection, schema, tableNameTemplate)) {
+          try(ResultSet columns = getColumnMetadata(connection, schemaNameTemplate, tableNameTemplate)) {
             Set<String> columnNames = new HashSet<>();
             while (columns.next()) {
               columnNames.add(columns.getString(4));
@@ -821,6 +908,32 @@ public class JdbcUtil {
   }
 
   /**
+   * Write records to potentially different schemas and tables using EL expressions, and handle errors.
+   *
+   * @param batch batch of SDC records
+   * @param schemaTableClassifier classifier to group records according to the schema and table names, resolving the
+   *     EL expressions involved.
+   * @param recordWriters JDBC record writer cache
+   * @param errorRecordHandler error record handler
+   * @param perRecord indicate record or batch update
+   * @throws StageException
+   */
+  public void write(
+      Batch batch,
+      SchemaTableClassifier schemaTableClassifier,
+      LoadingCache<SchemaAndTable, JdbcRecordWriter> recordWriters,
+      ErrorRecordHandler errorRecordHandler,
+      boolean perRecord
+  ) throws StageException {
+    Multimap<SchemaAndTable, Record> partitions = schemaTableClassifier.classify(batch);
+
+    for (SchemaAndTable key : partitions.keySet()) {
+      Iterator<Record> recordIterator = partitions.get(key).iterator();
+      write(recordIterator, key, recordWriters, errorRecordHandler, perRecord);
+    }
+  }
+
+  /**
    * Write records to the evaluated tables and handle errors.
    *
    * @param batch batch of SDC records
@@ -854,25 +967,25 @@ public class JdbcUtil {
   }
 
   /**
-   * Write records to the given table and handle errors.
+   * Write records to a JDBC destination using the recordWriter specified by key, and handle errors
    *
    * @param recordIterator iterator of SDC records
-   * @param tableName table name
+   * @param key key to select the recordWriter
    * @param recordWriters JDBC record writer cache
    * @param errorRecordHandler error record handler
    * @param perRecord indicate record or batch update
    * @throws StageException
    */
-  public void write(
+  public <T> void write(
       Iterator<Record> recordIterator,
-      String tableName,
-      LoadingCache<String, JdbcRecordWriter> recordWriters,
+      T key,
+      LoadingCache<T, JdbcRecordWriter> recordWriters,
       ErrorRecordHandler errorRecordHandler,
       boolean perRecord
   ) throws StageException {
     final JdbcRecordWriter jdbcRecordWriter;
     try {
-      jdbcRecordWriter = recordWriters.getUnchecked(tableName);
+      jdbcRecordWriter = recordWriters.getUnchecked(key);
     } catch (UncheckedExecutionException ex) {
       final Throwable throwable = ex.getCause();
       final ErrorCode errorCode;
@@ -1064,6 +1177,13 @@ public class JdbcUtil {
    */
   public boolean isElString(String value) {
     return value != null && value.startsWith("${");
+  }
+
+  /**
+   * @return true if the value is a not null string with no EL embedded
+   */
+  public boolean isPlainString(String value) {
+    return value != null && !value.contains(EL_PREFIX);
   }
 
   public void logDatabaseAndDriverInfo(ConnectionManager connectionManager) throws SQLException {

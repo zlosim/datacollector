@@ -171,8 +171,8 @@ public class AvroTypeUtil {
           if(schema.getType() != Schema.Type.BYTES) {
             throw new IllegalStateException("Unexpected physical type for logical decimal type: " + schema.getType());
           }
-          int scale = schema.getJsonProp(LOGICAL_TYPE_ATTR_SCALE).asInt();
-          int precision = schema.getJsonProp(LOGICAL_TYPE_ATTR_PRECISION).asInt();
+          int scale = schema.getJsonProp(LOGICAL_TYPE_ATTR_SCALE).getIntValue();
+          int precision = schema.getJsonProp(LOGICAL_TYPE_ATTR_PRECISION).getIntValue();
           if (value instanceof ByteBuffer) {
             byte[] decimalBytes = ((ByteBuffer)value).array();
             value = bigDecimalFromBytes(decimalBytes, scale);
@@ -331,13 +331,9 @@ public class AvroTypeUtil {
     }
     Object obj;
     if (schema.getType() == Schema.Type.UNION) {
-      String fieldPathAttribute = record.getHeader().getAttribute(AVRO_UNION_TYPE_INDEX_PREFIX + avroFieldPath);
       List<Schema> unionTypes = schema.getTypes();
 
-      if (fieldPathAttribute != null && !fieldPathAttribute.isEmpty()) {
-        int typeIndex = Integer.parseInt(fieldPathAttribute);
-        schema = unionTypes.get(typeIndex);
-      } else if(unionTypes.size() == 2 && unionTypes.get(0).getType() == Schema.Type.NULL) {
+      if(unionTypes.size() == 2 && unionTypes.get(0).getType() == Schema.Type.NULL) {
         // Special case where we have union of null and actual type (which is very common) - since we know that the
         // column is not null, expect the union's second type.
         schema = unionTypes.get(1);
@@ -380,7 +376,8 @@ public class AvroTypeUtil {
             if (schema.getType() != Schema.Type.BYTES) {
               throw new IllegalStateException("Unexpected physical type for logical decimal type: " + schema.getType());
             }
-            return ByteBuffer.wrap(field.getValueAsDecimal().unscaledValue().toByteArray());
+            int scale = schema.getJsonProp(LOGICAL_TYPE_ATTR_SCALE).getIntValue();
+            return ByteBuffer.wrap(field.getValueAsDecimal().setScale(scale).unscaledValue().toByteArray());
           case LOGICAL_TYPE_DATE:
             if (schema.getType() != Schema.Type.INT) {
               throw new IllegalStateException("Unexpected physical type for logical date type: " + schema.getType());
@@ -416,6 +413,16 @@ public class AvroTypeUtil {
             Errors.AVRO_GENERATOR_05,
             "logical type: " + logicalType,
             field.getType()
+        );
+      } catch (ArithmeticException ex) {
+        // Thrown when BigDecimal.setScale() requires rounding
+          throw new DataGeneratorException(
+            Errors.AVRO_GENERATOR_06,
+            field.getValue() != null ? field.getValue().toString() : "null",
+            field.getType(),
+            schema.toString(),
+            ex.toString(),
+            ex
         );
       }
     }

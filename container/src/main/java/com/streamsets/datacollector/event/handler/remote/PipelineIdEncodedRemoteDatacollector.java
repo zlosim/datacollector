@@ -19,8 +19,10 @@ package com.streamsets.datacollector.event.handler.remote;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.event.dto.AckEvent;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.execution.Runner;
+import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.lib.security.acl.dto.Acl;
@@ -32,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 
 public class PipelineIdEncodedRemoteDatacollector implements DataCollector {
 
@@ -69,7 +72,7 @@ public class PipelineIdEncodedRemoteDatacollector implements DataCollector {
   }
 
   @Override
-  public void savePipeline(
+  public String savePipeline(
       String user,
       String name,
       String rev,
@@ -82,7 +85,7 @@ public class PipelineIdEncodedRemoteDatacollector implements DataCollector {
     Map<String, Object> attribs = new HashMap<>();
     attribs.put(RemoteDataCollector.IS_REMOTE_PIPELINE, true);
     attribs.put(RemoteDataCollector.SCH_GENERATED_PIPELINE_NAME, name);
-    remoteDataCollector.savePipeline(
+    return remoteDataCollector.savePipeline(
         user,
         replaceColonWithDoubleUnderscore(name),
         rev,
@@ -108,8 +111,13 @@ public class PipelineIdEncodedRemoteDatacollector implements DataCollector {
   }
 
   @Override
-  public void validateConfigs(String user, String name, String rev) throws PipelineException {
-    remoteDataCollector.validateConfigs(user, replaceColonWithDoubleUnderscore(name), rev);
+  public void validateConfigs(
+      String user,
+      String name,
+      String rev,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs
+  ) throws PipelineException {
+    remoteDataCollector.validateConfigs(user, replaceColonWithDoubleUnderscore(name), rev, interceptorConfs);
   }
 
   @Override
@@ -154,8 +162,40 @@ public class PipelineIdEncodedRemoteDatacollector implements DataCollector {
     remoteDataCollector.storeConfiguration(newConfiguration);
   }
 
+  @Override
+  public String previewPipeline(
+      String user,
+      String name,
+      String rev,
+      int batches,
+      int batchSize,
+      boolean skipTargets,
+      boolean skipLifecycleEvents,
+      String stopStage,
+      List<StageOutput> stagesOverride,
+      long timeoutMillis,
+      boolean testOrigin,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
+      Function<Object, Void> afterActionsFunction
+  ) throws PipelineException {
+    return remoteDataCollector.previewPipeline(
+        user,
+        name,
+        rev,
+        batches,
+        batchSize,
+        skipTargets,
+        skipLifecycleEvents,
+        stopStage,
+        stagesOverride,
+        timeoutMillis,
+        testOrigin,
+        interceptorConfs,
+        afterActionsFunction
+    );
+  }
+
   static String replaceColonWithDoubleUnderscore(String name) {
     return name.replaceAll(":", "__");
   }
-
 }

@@ -38,6 +38,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -116,12 +117,12 @@ public class TestGenericRecordWriter {
         "TEST_TABLE",
         false, //rollback set to false
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(record);
     writer.writeBatch(batch.iterator());
@@ -165,12 +166,12 @@ public class TestGenericRecordWriter {
         "TEST_TABLE",
         false, //rollback
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(insertRecord, updateRecord);
     writer.writeBatch(batch.iterator());
@@ -215,12 +216,12 @@ public class TestGenericRecordWriter {
         "TEST_TABLE",
         false, //rollback false
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(insertRecord, deleteRecord);
     writer.writeBatch(batch.iterator());
@@ -266,12 +267,12 @@ public class TestGenericRecordWriter {
         "COMPOSITE_KEY",
         false,
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(insertRecord, updateRecord);
     writer.writeBatch(batch.iterator());
@@ -319,12 +320,12 @@ public class TestGenericRecordWriter {
         "COMPOSITE_KEY",
         false,
         new LinkedList<JdbcFieldColumnParamMapping>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(insertRecord, deleteRecord);
     writer.writeBatch(batch.iterator());
@@ -357,12 +358,12 @@ public class TestGenericRecordWriter {
         "TEST_TABLE",
         false, //rollback
         columnMapping,
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.DISCARD,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     Record record = RecordCreator.create();
     Map<String, Field> fields = new HashMap<>();
@@ -401,12 +402,12 @@ public class TestGenericRecordWriter {
         "TEST_TABLE",
         false, //rollback set to false
         new LinkedList<>(),
-        PreparedStatementCache.UNLIMITED_CACHE,
         JDBCOperationType.INSERT.getCode(),
         UnsupportedOperationAction.USE_DEFAULT,
         null,
         new JdbcRecordReader(),
-        caseSensitive
+        caseSensitive,
+        Collections.emptyList()
     );
     List<Record> batch = ImmutableList.of(record);
     final List<OnRecordErrorException> errors = writer.writeBatch(batch.iterator());
