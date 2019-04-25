@@ -405,6 +405,8 @@ public class TableRuntimeContext {
         if (partition != null) {
           newCommitOffsets.put(partition.getOffsetKey(), offsetValue);
           returnMap.put(tableContext, partition);
+        } else {
+          newCommitOffsets.put(offsetKey, offsetValue);
         }
       }
     }
@@ -554,20 +556,6 @@ public class TableRuntimeContext {
       firstRecordedOffsets = new HashMap<>(nextOffsets);
     } else if (!firstRecordedOffsets.equals(nextOffsets)) {
       firstRecordedOffsetsPassed = true;
-    }
-
-    if (firstRecordedOffsetsPassed && startingPartitionOffsets.isEmpty()) {
-      for (Map.Entry<String, String> entry : firstRecordedOffsets.entrySet()) {
-        final String column = entry.getKey();
-        final String offset = entry.getValue();
-        if (!startingPartitionOffsets.containsKey(column)) {
-          startingPartitionOffsets.put(column, offset);
-          if (partitioned) {
-            final String max = generateNextPartitionOffset(column, offset);
-            maxPartitionOffsets.put(column, max);
-          }
-        }
-      }
     }
   }
 
