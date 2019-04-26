@@ -153,10 +153,11 @@ public class AvroDataParserFactory extends DataParserFactory {
 
           // Strip the embedded ID
           remaining = Arrays.copyOfRange(data, MAGIC_BYTE_SIZE + ID_SIZE, data.length);
+          return new AvroMessageParser(getSettings().getContext(), recordSchema, remaining, id, schemaSource, detectedSchemaId.get());
         } else {
           remaining = data;
+          return new AvroMessageParser(getSettings().getContext(), recordSchema, remaining, id, schemaSource);
         }
-        return new AvroMessageParser(getSettings().getContext(), recordSchema, remaining, id, schemaSource);
       } catch (IOException | ExecutionException e) {
         throw new DataParserException(Errors.DATA_PARSER_03, e.toString(), e);
       }

@@ -150,6 +150,13 @@ public class HeaderAttributeConstants {
   public static final String AVRO_SCHEMA = "avroSchema";
 
   /**
+   * Confluent Schema ID.
+   *
+   * Schema ID in confluent schema registry associated with the record.
+   */
+  public static final String CONFLUENT_SCHEMA_ID = "confluentSchemaID";
+
+  /**
    * Kafka timestamp.
    *
    * Applicable for Kafka starting at 0.10.

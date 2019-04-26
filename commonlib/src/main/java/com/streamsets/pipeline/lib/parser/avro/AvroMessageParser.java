@@ -46,13 +46,15 @@ public class AvroMessageParser extends AbstractDataParser {
   private boolean eof;
   private final ProtoConfigurableEntity.Context context;
   private final String messageId;
+  private final Integer schemaId;
 
   public AvroMessageParser(
       ProtoConfigurableEntity.Context context,
       final Schema schema,
       final byte[] message,
       final String messageId,
-      final OriginAvroSchemaSource schemaSource
+      final OriginAvroSchemaSource schemaSource,
+      final Integer schemaId
   ) throws IOException {
     this.context = context;
     this.messageId = messageId;
@@ -65,6 +67,17 @@ public class AvroMessageParser extends AbstractDataParser {
       decoder = DecoderFactory.get().binaryDecoder(new ByteArrayInputStream(message), null);
       avroRecord = new GenericData.Record(schema);
     }
+    this.schemaId = schemaId;
+  }
+
+  public AvroMessageParser(
+      ProtoConfigurableEntity.Context context,
+      final Schema schema,
+      final byte[] message,
+      final String messageId,
+      final OriginAvroSchemaSource schemaSource
+  ) throws IOException {
+    this(context, schema, message, messageId, schemaSource, null);
   }
 
   @Override
@@ -80,6 +93,9 @@ public class AvroMessageParser extends AbstractDataParser {
       record = context.createRecord(messageId);
       record.set(AvroTypeUtil.avroToSdcField(record, genericRecord.getSchema(), genericRecord));
       record.getHeader().setAttribute(HeaderAttributeConstants.AVRO_SCHEMA, genericRecord.getSchema().toString());
+      if (schemaId != null) {
+        record.getHeader().setAttribute(HeaderAttributeConstants.CONFLUENT_SCHEMA_ID, schemaId.toString());
+      }
     }
     return record;
   }
