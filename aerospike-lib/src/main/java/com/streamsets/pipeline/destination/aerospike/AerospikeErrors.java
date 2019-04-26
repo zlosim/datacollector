@@ -26,7 +26,8 @@ public enum AerospikeErrors implements ErrorCode {
   AEROSPIKE_04("Put operation was not successful '{}'"),
   AEROSPIKE_05("There has to be at least one bin to store"),
   AEROSPIKE_06("'{}' can not be parsed: '{}'"),
-  AEROSPIKE_07("'{}' can not be evaluated: '{}'"),;
+  AEROSPIKE_07("'{}' can not be evaluated: '{}'"),
+  AEROSPIKE_08("'{}' is not supported operation");
 
   private final String msg;
 

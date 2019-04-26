@@ -68,4 +68,5 @@ public class BinConfig {
     this.binValue = binValue;
     this.valueType = valueType;
   }
+
 }
