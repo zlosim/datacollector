@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 StreamSets Inc.
+ * Copyright 2019 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import com.streamsets.pipeline.lib.operation.OperationType;
 public enum AerospikeOperationType implements Label {
   DELETE(OperationType.DELETE_CODE),
   UPSERT(OperationType.UPSERT_CODE),
-      ;
+  ;
 
   final int code;
 
@@ -43,11 +43,12 @@ public enum AerospikeOperationType implements Label {
    * Take a numeric operation code in String and check if the number is
    * valid operation code.
    * The operation code must be numeric: 1(insert), 2(update), 3(delete), etc,
+   *
    * @param op Numeric operation code in String type
    * @return Operation code in int. Throws UnsupportedOperationException or
-   *        NumberFormatException if invalid.
+   * NumberFormatException if invalid.
    */
-  static int convertToIntCode(String op)  {
+  static int convertToIntCode(String op) {
     try {
       int intOp = Integer.parseInt(op);
       switch (intOp) {

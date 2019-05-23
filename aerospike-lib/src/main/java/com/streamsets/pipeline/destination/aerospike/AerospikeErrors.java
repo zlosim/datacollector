@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 StreamSets Inc.
+ * Copyright 2019 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ public enum AerospikeErrors implements ErrorCode {
   AEROSPIKE_05("There has to be at least one bin to store"),
   AEROSPIKE_06("'{}' can not be parsed: '{}'"),
   AEROSPIKE_07("'{}' can not be evaluated: '{}'"),
-  AEROSPIKE_08("'{}' is not supported operation");
+  AEROSPIKE_08("'{}' is not supported operation"),
+  ;
 
   private final String msg;
 
